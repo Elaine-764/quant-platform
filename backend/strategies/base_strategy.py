@@ -1,5 +1,5 @@
 from ..core_logic.events.base_event import Event
-from enhancements.signal_types import SignalType
+from .enhancements.signal_types import SignalType
 from ..core_logic.events.signal_event import SignalEvent, FullSignalEvent
 
 class Strategy:

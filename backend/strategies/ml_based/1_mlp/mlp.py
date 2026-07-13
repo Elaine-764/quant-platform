@@ -4,7 +4,12 @@ import torch
 from torch import nn
 import torch.optim as optim
 from ...base_strategy import Strategy
+from functools import reduce
+from ....core_logic.events.market_event import MarketEvent
+from ....core_logic.events.base_event import Event
+from ....core_logic.events.signal_event import SignalEvent
 
+# TODO: add more metrics
 
 # ---------------------------------------------------------------------------
 # Feature engineering
@@ -167,14 +172,72 @@ class MLP(Strategy):
             return self.net(X_t).cpu().numpy()
 
     def compute_factors(self):
-        raise NotImplementedError(
-            "Feature/target/window construction happens offline via "
-            "build_features / build_targets / make_windows, then fit(). "
-            "This isn't a per-bar factor computation like the other strategies."
-        )
+        """
+        Builds the full historical feature matrix and forward-return targets
+        from self.data_dfs, fits the model once (offline), and caches the
+        per-day feature matrix so on_event can slice rolling windows for
+        live/backtest inference without recomputing everything each bar.
 
-    def on_event(self, event):
-        raise NotImplementedError(
-            "Wire this up once you decide how live windows get assembled "
-            "bar-by-bar; predict() gives you the raw model call once you have X."
-        )
+        Assumes: len(self.data_dfs) >= self.input_num_assets. The first
+        input_num_assets DataFrames are prediction targets; any additional
+        ones (e.g. VIX, TLT) are feature-only context assets.
+        """
+        renamed_dfs = []
+        for df, asset in zip(self.data_dfs, self.asset_names):
+            renamed_dfs.append(df.rename(columns={
+                "High": f'{asset}_High', 'Low': f'{asset}_Low',
+                'Open': f'{asset}_Open', 'Close': f'{asset}_Close',
+                'Volume': f'{asset}_Volume',
+            }))
+        merged = reduce(lambda l, r: pd.merge(l, r, on='Date'), renamed_dfs)
+        merged = merged.sort_values('Date').reset_index(drop=True)
+        self.data = merged  # so on_event can use iloc like your other strategies
+
+        close_cols = {a: merged[f'{a}_Close'] for a in self.asset_names}
+        price_df = pd.DataFrame(close_cols)
+
+        # per-asset features for ALL assets (targets + context)
+        feature_frames = []
+        for asset in self.asset_names:
+            close = price_df[asset]
+            feature_frames.append(pd.DataFrame({
+                f'{asset}_rsi':   compute_rsi(close),
+                f'{asset}_macd':  compute_macd(close),
+                f'{asset}_ret20': close.pct_change(20),
+                f'{asset}_vol20': close.pct_change().rolling(20).std(),
+            }))
+        self.features_df = pd.concat(feature_frames, axis=1).dropna()
+
+        # forward 5-day returns, targets = only the first input_num_assets
+        target_assets = self.asset_names[:self.input_num_assets]
+        self.targets_df = build_targets(price_df[target_assets], horizon=5)
+
+        X, Y = make_windows(self.features_df, self.targets_df, self.input_num_days)
+        self.fit(X, Y)
+
+
+    def on_event(self, event: Event):
+        t = event.timestamp
+        target_assets = self.asset_names[:self.input_num_assets]
+
+        if t < self.input_num_days or self.feature_mean is None:
+            return [SignalEvent(t, asset, 0) for asset in target_assets]
+
+        # window ending at t-1: bars [t-1-window, t-1), never touches bar t itself
+        window = self.features_df.iloc[t - self.input_num_days: t]
+        if len(window) < self.input_num_days or window.isna().any().any():
+            return [SignalEvent(t, asset, 0) for asset in target_assets]
+
+        X = window.values.flatten().reshape(1, -1).astype(np.float32)
+        predicted_returns = self.predict(X)[0]  # shape: (input_num_assets,)
+
+        pred_threshold = 0.001  # tune this — filters out noise-level predictions
+        signals = []
+        for asset, pred_ret in zip(target_assets, predicted_returns):
+            if pred_ret > pred_threshold:
+                signals.append(SignalEvent(t, asset, 1))
+            elif pred_ret < -pred_threshold:
+                signals.append(SignalEvent(t, asset, -1))
+            else:
+                signals.append(SignalEvent(t, asset, 0))
+        return signals

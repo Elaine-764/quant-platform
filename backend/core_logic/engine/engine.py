@@ -16,7 +16,7 @@ class BacktestEngine:
     def run(self):
         self.strategy.compute_factors()
         for t in range(len(self.data)):
-            price = self.data["price"][t] # TODO: price col does not exist, decide what should be the price
+            price = self.data["Close"][t] 
 
             # 1. Create market event
             event = MarketEvent(timestamp=t, price=price)

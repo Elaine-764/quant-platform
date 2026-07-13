@@ -1,4 +1,4 @@
-from base_event import Event
+from .base_event import Event
 
 class OrderEvent(Event):
     def __init__(self, timestamp, asset, price, quantity, direction: str, cost):
