@@ -1,6 +1,6 @@
-# Quant Platform
+# Trading Strategies Research Platform
 
-Quant Platform is a research and backtesting workspace for systematic trading strategies. The project is split into a software layer that handles data, execution, evaluation, and APIs, and a strategy layer that focuses on signals, factors, and the math behind the decisions.
+This quant platform is a research and backtesting workspace for systematic trading strategies. The project is split into a software layer that handles data, execution, evaluation, and APIs, and a strategy layer that focuses on signals, factors, and the math behind the decisions.
 
 ## What It Does
 
