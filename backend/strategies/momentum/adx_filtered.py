@@ -1,7 +1,7 @@
-from ..base_strategy import Strategy
-from ...core_logic.events.base_event import Event
-from ...factors.price_based import ADX
-from ...core_logic.events.signal_event import SignalEvent
+from base_strategy import Strategy
+from core_logic.events.base_event import Event
+from factors.price_based import ADX
+from core_logic.events.signal_event import SignalEvent
 
 class ADXFilteredTrend(Strategy):
     """ADX-filtered trend following strategy.
@@ -31,7 +31,7 @@ class ADXFilteredTrend(Strategy):
         self.minus_di_column = f"{self.asset}_minus_di"
         self.asset = self.asset
 
-    def on_event(self, event: Event):
+    def on_event(self, event: Event, positions=None):
         t = event.timestamp
 
         if t < self.adx_window:

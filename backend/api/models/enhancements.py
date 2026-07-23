@@ -1,73 +1,78 @@
-from typing import Dict, Any, Optional, Union, List
+from typing import Literal, Union, Optional, List
+from typing_extensions import Annotated
 from pydantic import BaseModel, Field
 
-class Enhancements(BaseModel):
-    filters: Optional[List["Filter"]]
-    position_sizers: Optional[List["PositionSizer"]]
-
-# class EnhancementConfig(BaseModel):
-#     name: str
-#     params: Dict[str, Any] = Field(default_factory=dict)
-
-class Filter(BaseModel):
+class FilterBase(BaseModel):
     name: str
-    filter: Union["VolFilter", "MomentumFilter", "VolumeFilter", "VolumeFilter", "MaxDrawdownControl", "MaxPositionSize",
-                  "ConsecutiveLossControl"]
 
-class VolFilter(Filter):
+
+class VolFilter(FilterBase):
+    type: Literal["vol_filter"] = "vol_filter"
     min_vol: float
     max_vol: float
     lookback: int
 
-class MomentumFilter(Filter):
+class MomentumFilter(FilterBase):
+    type: Literal["momentum_filter"] = "momentum_filter"
     lookback: int
 
-class VolumeFilter(Filter):
+class VolumeFilter(FilterBase):
+    type: Literal["volume_filter"] = "volume_filter"
     lookback: int
     min_volume_ratio: float
 
-class StopLoss(Filter):
+class StopLoss(FilterBase):
+    type: Literal["stop_loss"] = "stop_loss"
     stop_loss_pct: float
 
-class MaxDrawdownControl(Filter):
+class MaxDrawdownControl(FilterBase):
+    type: Literal["max_drawdown_control"] = "max_drawdown_control"
     max_dd_pct: float
 
-class MaxPositionSize(Filter):
+class MaxPositionSize(FilterBase):
+    type: Literal["max_position_size"] = "max_position_size"
     max_pos_pct: float
 
-class ConsecutiveLossControl(Filter):
+class ConsecutiveLossControl(FilterBase):
+    type: Literal["consecutive_loss_control"] = "consecutive_loss_control"
     max_consec_losses: float
 
-Filter.model_rebuild()
+FilterUnion = Annotated[
+    Union[VolFilter, MomentumFilter, VolumeFilter, StopLoss, MaxDrawdownControl, MaxPositionSize, ConsecutiveLossControl],
+    Field(discriminator="type"),
+]
 
 
-class PositionSizer(BaseModel):
+class PositionSizerBase(BaseModel):
     name: str
-    sizer: Union["FractionalSizer", "VolatilityScaling", "KellyCriterion", "DynamicKelly"]
 
-
-class FractionalSizer(PositionSizer):
+class FractionalSizer(PositionSizerBase):
+    type: Literal["fractional"] = "fractional"
     fraction: float = 0.25
 
-
-class VolatilityScaling(PositionSizer):
+class VolatilityScaling(PositionSizerBase):
+    type: Literal["volatility_scaling"] = "volatility_scaling"
     lookback: int = 20
     target_volatility: float = 0.015
 
-
-class KellyCriterion(PositionSizer):
+class KellyCriterion(PositionSizerBase):
+    type: Literal["kelly_criterion"] = "kelly_criterion"
     win_rate: float = 0.55
     avg_win: float = 0.02
     avg_loss: float = 0.01
     kelly_fraction: float = 0.25
 
-
-class DynamicKelly(PositionSizer):
+class DynamicKelly(PositionSizerBase):
+    type: Literal["dynamic_kelly"] = "dynamic_kelly"
     lookback_trades: int = 20
     kelly_fraction: float = 0.25
 
+SizerUnion = Annotated[
+    Union[FractionalSizer, VolatilityScaling, KellyCriterion, DynamicKelly],
+    Field(discriminator="type"),
+]
 
-PositionSizer.model_rebuild()
-Enhancements.model_rebuild()
 
-        
+class EnhancementsModel(BaseModel):
+    filters: Optional[List[FilterUnion]] = None
+    position_sizers: Optional[List[SizerUnion]] = None

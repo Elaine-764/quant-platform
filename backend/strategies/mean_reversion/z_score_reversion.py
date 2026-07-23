@@ -1,7 +1,7 @@
-from ..base_strategy import Strategy
-from ...core_logic.events.base_event import Event
-from ...core_logic.events.signal_event import SignalEvent
-from ...core_logic.events.market_event import MarketEvent
+from base_strategy import Strategy
+from core_logic.events.base_event import Event
+from core_logic.events.signal_event import SignalEvent
+from core_logic.events.market_event import MarketEvent
 import numpy as np
 import pandas as pd
 import statsmodels.api as sm
@@ -64,7 +64,7 @@ class ZScoreReversion(Strategy):
         self.data['z_mean'] = self.data['Close'].rolling(window=self.window).mean()
         self.data['z_std'] = self.data['Close'].rolling(window=self.window).std(ddof=1)
 
-    def on_event(self, event: Event):
+    def on_event(self, event: Event, positions=None):
         t = event.timestamp
         if t < self.window:
             return SignalEvent(t, self.asset, 0)

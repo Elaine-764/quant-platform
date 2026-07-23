@@ -1,8 +1,8 @@
-from ..base_strategy import Strategy
-from ...core_logic.events.base_event import Event
+from base_strategy import Strategy
+from core_logic.events.base_event import Event
 # from ...factors.volatility import VolatilityFactor
 import numpy as np
-from ...core_logic.events.signal_event import SignalEvent
+from core_logic.events.signal_event import SignalEvent
 from hmmlearn import hmm
 
 # TODO: check this implementation of hmm
@@ -72,7 +72,7 @@ class RegimeSwitching(Strategy):
         else:
             return 'low_vol'
 
-    def on_event(self, event: Event):
+    def on_event(self, event: Event, positions=None):
         t = event.timestamp
 
         if t < self.vol_window:
@@ -83,7 +83,7 @@ class RegimeSwitching(Strategy):
 
         # Use mean reversion in high volatility regime -- i.e. bear market
         if regime != self.bull_state:
-            return self.mean_reversion_strategy.on_event(event)
+            return self.mean_reversion_strategy.on_event(event, positions)
         # Use momentum in low volatility regime
         else:
-            return self.momentum_strategy.on_event(event)
+            return self.momentum_strategy.on_event(event, positions)

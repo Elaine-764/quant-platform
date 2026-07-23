@@ -1,6 +1,6 @@
-from ..base_strategy import Strategy
-from ...core_logic.events.base_event import Event
-from ...core_logic.events.signal_event import SignalEvent
+from strategies.base_strategy import Strategy
+from core_logic.events.base_event import Event
+from core_logic.events.signal_event import SignalEvent
 import numpy as np
 import pandas as pd
 
@@ -11,7 +11,7 @@ class EquitiesBondsDynamic(Strategy):
     When bonds are rising (attractive), reduce equity risk.
     When VIX is high, shift to bonds for safety.
     """
-    def __init__(self, eq_data, bonds_data, equity, bond, lookback=20, bond_momentum_window=10):
+    def __init__(self, data, enhancements, eq_data, bonds_data, equity, bond, lookback=20, bond_momentum_window=10):
         """
         Args:
             data: DataFrame with OHLCV data for both assets
@@ -35,7 +35,9 @@ class EquitiesBondsDynamic(Strategy):
             'Close': f'{bond}_Close',
             'Volume': f'{bond}_Volume'
             })
-        vix_data = pd.read_csv('../../data/processed/^VIX.csv')
+        from pathlib import Path
+        DATA_DIR = Path(__file__).resolve().parents[2] / "data" / "processed"
+        vix_data = pd.read_csv(f'{DATA_DIR}/^VIX.csv')
         vix = 'VIX'
         vix_data= vix_data.rename(columns={
             "High": f'{vix}_High',
@@ -47,7 +49,7 @@ class EquitiesBondsDynamic(Strategy):
         data = pd.merge(eq_data, bonds_data, on='Date')
         data = pd.merge(data, vix_data, on='Date')
         
-        super().__init__(data)
+        super().__init__(data, enhancements)
 
         self.equity_column = f'{equity}_Close'
         self.bond_column = f'{bond}_Close'
@@ -75,7 +77,7 @@ class EquitiesBondsDynamic(Strategy):
 
         self.asset = self.asset
 
-    def on_event(self, event: Event):
+    def on_event(self, event: Event, positions=None):
         t = event.timestamp
 
         if t < max(self.lookback, self.bond_momentum_window):
@@ -129,7 +131,7 @@ class CrossAssetMomentum(Strategy):
                 data[col_name] = data[asset_name].pct_change(self.lookback)
         self.asset = asset
 
-    def on_event(self, event: Event):
+    def on_event(self, event: Event, positions=None):
         t = event.timestamp
 
         if t < self.lookback:
@@ -214,7 +216,7 @@ class RelativeValueStrategy(Strategy):
 
         self.asset = asset
 
-    def on_event(self, event: Event):
+    def on_event(self, event: Event, positions=None):
         t = event.timestamp
 
         if t < self.window:

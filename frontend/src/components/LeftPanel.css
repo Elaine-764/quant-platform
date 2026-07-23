@@ -1,0 +1,5 @@
+.left-panel .section h3 { margin:6px 0 8px 0 }
+.left-panel .enh-list { display:flex; flex-direction:column; gap:6px }
+.left-panel .panel-actions { display:flex; justify-content:space-between }
+.enh-item { display:flex; align-items:center; gap:8px }
+.params input { width:100%; padding:6px; border-radius:6px; border:1px solid rgba(0,0,0,0.06) }

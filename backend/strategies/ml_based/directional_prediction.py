@@ -214,7 +214,7 @@ class DirectionalPrediction(Strategy):
         # ... etc
         pass
 
-    def on_event(self, event: Event):
+    def on_event(self, event: Event, positions=None):
         t = event.timestamp
 
         # Get the feature row for this timestamp

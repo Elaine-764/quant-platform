@@ -280,7 +280,7 @@ class VolatilityPrediction(Strategy):
         """Features pre-computed at init."""
         pass
 
-    def on_event(self, event: Event) -> int:
+    def on_event(self, event: Event, positions=None) -> int:
         t = event.timestamp
 
         if t not in self._pred_series.index:

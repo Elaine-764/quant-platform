@@ -1,0 +1,5 @@
+.right-panel .pane h4 { margin:0 0 8px 0 }
+.chart-controls { display:flex; gap:12px; margin-top:8px }
+.metrics-pane { padding:12px }
+.test-actions { display:flex; gap:8px }
+.tests-list .test-item { padding:8px; border-radius:8px; background:rgba(245,247,250,0.6) }

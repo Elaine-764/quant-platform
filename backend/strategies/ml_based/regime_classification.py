@@ -303,7 +303,7 @@ class RegimeClassification(Strategy):
         """Features are pre-computed in self.features_df at init."""
         pass
 
-    def on_event(self, event: Event):
+    def on_event(self, event: Event, positions=None):
         t = event.timestamp
 
         if t not in self._proba_df.index:

@@ -1,5 +1,5 @@
-from ...core_logic.events.base_event import Event
-from ...strategies.enhancements.signal_types import SignalType
+from core_logic.events.base_event import Event
+from strategies.enhancements.signal_types import SignalType
 class SignalEvent(Event):
     def __init__(self, timestamp, asset, signal: int):
         super().__init__("SIGNAL")

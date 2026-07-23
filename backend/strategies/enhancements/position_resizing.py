@@ -1,6 +1,6 @@
 """Position sizing methods to adjust trade sizes based on market conditions."""
 import numpy as np
-from ...strategies.enhancements.signal_types import SignalType
+from strategies.enhancements.signal_types import SignalType
 class PositionSizer:
     """
     Converts a signal into an actual order quantity.

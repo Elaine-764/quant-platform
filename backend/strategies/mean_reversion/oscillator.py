@@ -1,7 +1,7 @@
-from ..base_strategy import Strategy
-from ...core_logic.events.base_event import Event
-from ...core_logic.events.signal_event import SignalEvent
-from ...factors.price_based import RSI
+from base_strategy import Strategy
+from core_logic.events.base_event import Event
+from core_logic.events.signal_event import SignalEvent
+from factors.price_based import RSI
 
 class OscillatorMeanReversion(Strategy):
     """Mean reversion strategy using RSI (Relative Strength Index).
@@ -22,7 +22,7 @@ class OscillatorMeanReversion(Strategy):
         self.rsi_column = rsi.output_column()
         self.asset = self.asset
 
-    def on_event(self, event: Event):
+    def on_event(self, event: Event, positions=None):
         t = event.timestamp
 
         if t < self.window:

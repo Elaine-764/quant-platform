@@ -1,6 +1,6 @@
 """Strategy filters to modify signals based on market conditions."""
 import numpy as np
-from ...strategies.enhancements.signal_types import SignalType
+from strategies.enhancements.signal_types import SignalType
 
 class Filter:
     def apply(self, signal_type, event, data) -> SignalType:

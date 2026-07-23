@@ -1,15 +1,15 @@
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
 
-from .enhancements import PositionSizer, Enhancements, Filter
+from api.models.enhancements import PositionSizerBase, EnhancementsModel, FilterBase
 
 
 class StrategyRequest(BaseModel):
 	strategy: str
 	instrument: str
 	params: Dict[str, Any] = Field(default_factory=dict)
-	enhancements: Enhancements
-	position_sizer: Optional[PositionSizer] = None
+	enhancements: EnhancementsModel
+	position_sizer: Optional[PositionSizerBase] = None
 
 
 class StrategyResponse(BaseModel):
@@ -22,46 +22,46 @@ class StrategyResponse(BaseModel):
 # Specific strategy models
 # ------------------------
 
-class EquityBonds(BaseModel):
+class EquityBondsModel(BaseModel):
 	equity: str
 	bond: str
-	lookback: float
+	lookback: int
 	bond_momentum_window: int
 
-class DeltaHedging(BaseModel):
-    asset: str
+class DeltaHedgingModel(BaseModel):
+    equity: str
     strike: float
     days_to_expiry: int
     r: float = 0.04
     assumed_vol: float = None
     cash_balance: float = 0.0
 
-class Cointegration(BaseModel):
+class CointegrationModel(BaseModel):
 	asset1: str
 	asset2: str
 	window: int
 	threshold: float
 	beta: float
 
-class Oscillator(BaseModel):
+class OscillatorModel(BaseModel):
     asset: str
     window: int
     buy_threshold: float
     sell_threshold: float
 	
-class MARequest(BaseModel):
+class MARequestModel(BaseModel):
 	asset: str
 	short_window: int = 20
 	long_window: int = 50
 
 
-class BollingerRequest(BaseModel):
+class BollingerRequestModel(BaseModel):
 	asset: str
 	window: int = 20
 	num_std: float = 2.0
 
 
-class ZScoreRequest(BaseModel):
+class ZScoreRequestModel(BaseModel):
 	asset: str
 	window: int = 20
 	threshold: float = 2.0

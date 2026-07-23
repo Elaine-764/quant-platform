@@ -1,8 +1,8 @@
-from ..base_strategy import Strategy
-from ...core_logic.events.base_event import Event
-from ...factors.price_based import BollingerBands
-from ...core_logic.events.market_event import MarketEvent
-from ...core_logic.events.signal_event import SignalEvent
+from base_strategy import Strategy
+from core_logic.events.base_event import Event
+from factors.price_based import BollingerBands
+from core_logic.events.market_event import MarketEvent
+from core_logic.events.signal_event import SignalEvent
 
 class BollingerBandsReversion(Strategy):
     """Mean reversion strategy using Bollinger Bands.
@@ -23,7 +23,7 @@ class BollingerBandsReversion(Strategy):
         self.data['bb_upper'] = upper
         self.data['bb_lower'] = lower
 
-    def on_event(self, event: Event):
+    def on_event(self, event: Event, positions=None):
         t = event.timestamp
 
         if t < self.window:

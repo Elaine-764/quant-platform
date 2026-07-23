@@ -1,0 +1,2 @@
+.topbar .btn { background: transparent; border: none; padding: 6px 8px; cursor: pointer }
+.topbar .controls { display:flex; gap:8px }

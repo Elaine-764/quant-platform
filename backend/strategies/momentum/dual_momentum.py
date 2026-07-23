@@ -1,7 +1,7 @@
-from ..base_strategy import Strategy
-from ...core_logic.events.base_event import Event
+from base_strategy import Strategy
+from core_logic.events.base_event import Event
 import numpy as np
-from ...core_logic.events.signal_event import SignalEvent
+from core_logic.events.signal_event import SignalEvent
 
 class DualMomentum(Strategy):
     """Dual Momentum strategy combining relative and absolute momentum.
@@ -40,7 +40,7 @@ class DualMomentum(Strategy):
 
         self.asset = self.asset
 
-    def on_event(self, event: Event):
+    def on_event(self, event: Event, positions=None):
         t = event.timestamp
 
         if t < self.lookback:

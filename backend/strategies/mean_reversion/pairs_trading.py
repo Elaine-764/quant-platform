@@ -1,6 +1,6 @@
-from ..base_strategy import Strategy
-from ...core_logic.events.base_event import Event
-from ...core_logic.events.signal_event import SignalEvent
+from base_strategy import Strategy
+from core_logic.events.base_event import Event
+from core_logic.events.signal_event import SignalEvent
 import numpy as np
 import pandas as pd
 from functools import reduce
@@ -77,7 +77,7 @@ class PairsTrading(Strategy):
         self.data['spread_mean'] = self.data['spread'].rolling(window=self.window).mean()
         self.data['spread_std'] = self.data['spread'].rolling(window=self.window).std(ddof=1)
 
-    def on_event(self, event: Event):
+    def on_event(self, event: Event, positions=None):
         t = event.timestamp
         asset1, asset2 = self.assets
 
@@ -149,7 +149,7 @@ class EngleGranger(PairsTrading):
         self.data['spread_mean'] = self.data['spread'].rolling(window=self.window).mean()
         self.data['spread_std'] = self.data['spread'].rolling(window=self.window).std(ddof=1)
 
-    def on_event(self, event: Event):
+    def on_event(self, event: Event, positions=None):
         t = event.timestamp
         asset_y, asset_x = self.assets
 
@@ -242,7 +242,7 @@ class Johansen(PairsTrading):
         self.data['spread_mean'] = self.data['spread'].rolling(window=self.window).mean()
         self.data['spread_std'] = self.data['spread'].rolling(window=self.window).std(ddof=1)
 
-    def on_event(self, event: Event):
+    def on_event(self, event: Event, positions=None):
         t = event.timestamp
 
         if (self.johansen_result is None

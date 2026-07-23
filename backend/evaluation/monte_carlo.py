@@ -3,7 +3,7 @@ Monte Carlo base class for Noise Injection and Bootstrapped Confidence Intervals
 '''
 import math
 from scipy import stats
-from ..core_logic.engine.engine import BacktestEngine
+from core_logic.engine.engine import BacktestEngine
 
 
 class MonteCarlo():

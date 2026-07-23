@@ -3,11 +3,11 @@ import pandas as pd
 import torch
 from torch import nn
 import torch.optim as optim
-from ...base_strategy import Strategy
+from base_strategy import Strategy
 from functools import reduce
-from ....core_logic.events.market_event import MarketEvent
-from ....core_logic.events.base_event import Event
-from ....core_logic.events.signal_event import SignalEvent
+from core_logic.events.market_event import MarketEvent
+from core_logic.events.base_event import Event
+from core_logic.events.signal_event import SignalEvent
 
 # TODO: add more metrics
 
@@ -216,7 +216,7 @@ class MLP(Strategy):
         self.fit(X, Y)
 
 
-    def on_event(self, event: Event):
+    def on_event(self, event: Event, positions=None):
         t = event.timestamp
         target_assets = self.asset_names[:self.input_num_assets]
 

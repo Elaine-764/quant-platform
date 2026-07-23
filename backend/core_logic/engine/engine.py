@@ -1,11 +1,11 @@
-from ..events.base_event import Event
-from ..events.market_event import MarketEvent
-from ..events.order_event import OrderEvent
-from ...strategies.enhancements.filters import Filter
-from ...strategies.enhancements.position_resizing import PositionSizer
-from ..portfolio.portfolio import Portfolio
-from ...strategies.enhancements.signal_types import SignalType
-from ...strategies.base_strategy import Strategy
+from core_logic.events.base_event import Event
+from core_logic.events.market_event import MarketEvent
+from core_logic.events.order_event import OrderEvent
+from strategies.enhancements.filters import Filter
+from strategies.enhancements.position_resizing import PositionSizer
+from core_logic.portfolio.portfolio import Portfolio
+from strategies.enhancements.signal_types import SignalType
+from strategies.base_strategy import Strategy
 class BacktestEngine:
     def __init__(self, data, strategy: Strategy, portfolio: Portfolio):
         self.data = data # TODO: might need to process this before instantiation
@@ -16,13 +16,14 @@ class BacktestEngine:
     def run(self):
         self.strategy.compute_factors()
         for t in range(len(self.data)):
+            print(self.data.columns)
             price = self.data["Close"][t] 
 
             # 1. Create market event
             event = MarketEvent(timestamp=t, price=price)
 
-            # get current position
-            pos = self.portfolio.position # TODO: consider feeding position into strategy instead of strategy having a position field
+            # get current positions snapshot
+            pos = self.portfolio.positions
 
             # 2. Strategy generates signal
             signals = self.strategy.get_signals(event) 
@@ -30,7 +31,7 @@ class BacktestEngine:
             # 3. Portfolio updates based on signal
             for signal in signals:
                 self.portfolio.update(signal, price)
-            self.strategy.update_portfolio_state(self.portfolio) # TODO: is this needed? see TODO from above
+            self.strategy.update_portfolio_state(self.portfolio.positions)
             # do we need to maintain portfolio in two places
 
             # 4. Record state
@@ -43,7 +44,7 @@ class BacktestEngine:
             "timestamp": t,
             "price": price,
             "portfolio_value": self.portfolio.total_value(price), 
-            "position": self.portfolio.position
+            "position": self.portfolio.positions
         })
 
     def get_results(self): # retrieving the equity curve

@@ -19,7 +19,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 from monte_carlo import MonteCarlo
-from ..core_logic.engine.engine import BacktestEngine
+from core_logic.engine.engine import BacktestEngine
 
 
 class BootstrappedConfidenceIntervals(MonteCarlo):

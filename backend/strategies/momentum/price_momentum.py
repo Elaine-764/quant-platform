@@ -1,6 +1,6 @@
-from ..base_strategy import Strategy
-from ...core_logic.events.base_event import Event
-from ...core_logic.events.signal_event import SignalEvent
+from base_strategy import Strategy
+from core_logic.events.base_event import Event
+from core_logic.events.signal_event import SignalEvent
 
 class PriceMomentum(Strategy):
     """Price Momentum strategy.
@@ -25,7 +25,7 @@ class PriceMomentum(Strategy):
         self.data['momentum'] = self.data['Close'].pct_change(self.lookback) * 100  # Convert to percentage
         self.asset = self.asset
 
-    def on_event(self, event: Event):
+    def on_event(self, event: Event, positions=None):
         t = event.timestamp
 
         if t < self.lookback:

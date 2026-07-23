@@ -1,6 +1,6 @@
-from ..base_strategy import Strategy
-from ...core_logic.events.base_event import Event
-from ...core_logic.events.signal_event import SignalEvent
+from base_strategy import Strategy
+from core_logic.events.base_event import Event
+from core_logic.events.signal_event import SignalEvent
 
 class MAToMACrossover(Strategy):
     """MA Crossover momentum strategy.
@@ -19,7 +19,7 @@ class MAToMACrossover(Strategy):
         self.data['long_ma'] = self.data['Close'].rolling(window=self.long_window).mean()
         self.asset = self.asset
 
-    def on_event(self, event: Event):
+    def on_event(self, event: Event, positions=None):
         t = event.timestamp
 
         if t < self.long_window:

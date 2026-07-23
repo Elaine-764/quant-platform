@@ -5,7 +5,7 @@ from ..base_strategy import Strategy
 
 
 class DeltaHedging(Strategy):
-    def __init__(self, data, asset: str, strike: float, days_to_expiry: int,
+    def __init__(self, data, enhancements, asset: str, strike: float, days_to_expiry: int,
                  r: float = 0.04, assumed_vol: float = None,
                  cash_balance: float = 0.0):
         """
@@ -19,7 +19,7 @@ class DeltaHedging(Strategy):
         assumed_vol     : implied vol to use; if None, calibrated from data
         cash_balance    : starting cash (premium collected is added on Day 0)
         """
-        super().__init__(data)
+        super().__init__(data, enhancements)
         self.asset           = asset
         self.strike          = strike
         self.days_to_expiry  = days_to_expiry
@@ -166,12 +166,12 @@ class DeltaHedging(Strategy):
     # ------------------------------------------------------------------
     # on_event  (called by the engine on every bar)
     # ------------------------------------------------------------------
-    def on_event(self, event: dict):
+    def on_event(self, event: dict, positions=None):
         """
         Dynamic delta-hedging rebalance on each new price bar.
 
         event keys expected from BacktestEngine:
-            timestamp, bar_index, price (close), portfolio_state
+            timestamp, bar_index, price (close), positions
         """
         t     = event["bar_index"]
         price = event["price"]
@@ -202,12 +202,13 @@ class DeltaHedging(Strategy):
             self.shares_held   = target_shares
             self.cash_balance *= np.exp(self.r * dt)        # risk-free growth
 
-        # Update portfolio state so the engine can record it
-        if self.portfolio_state is not None:
-            self.portfolio_state["shares_held"]  = self.shares_held
-            self.portfolio_state["cash_balance"] = self.cash_balance
-            self.portfolio_state["hedge_pnl"]    = (
+        # keep strategy-local state only; the engine owns portfolio recording
+        self.positions_state = {
+            "shares_held": self.shares_held,
+            "cash_balance": self.cash_balance,
+            "hedge_pnl": (
                 self.cash_balance
                 + self.shares_held * price
                 - max(price - self.strike, 0)
-            )
+            ),
+        }

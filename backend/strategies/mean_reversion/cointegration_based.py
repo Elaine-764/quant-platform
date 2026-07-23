@@ -1,8 +1,8 @@
-from ..base_strategy import Strategy
-from ...core_logic.events.base_event import Event
+from strategies.base_strategy import Strategy
+from core_logic.events.base_event import Event
 import numpy as np
 import pandas as pd
-from ...core_logic.events.signal_event import SignalEvent
+from core_logic.events.signal_event import SignalEvent
 
 class CointegrationBased(Strategy):
     """Statistical arbitrage strategy using cointegrated spreads.
@@ -63,7 +63,7 @@ class CointegrationBased(Strategy):
         self.data['coint_mean'] = self.data['coint_spread'].rolling(window=self.window).mean()
         self.data['coint_std'] = self.data['coint_spread'].rolling(window=self.window).std(ddof=1)
 
-    def on_event(self, event: Event):
+    def on_event(self, event: Event, positions=None):
         t = event.timestamp
 
         if t < self.window:
