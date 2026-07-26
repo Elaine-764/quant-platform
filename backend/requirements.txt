@@ -1,0 +1,15 @@
+fastapi==0.140.0
+hmmlearn==0.3.3
+lightgbm==4.7.0
+numpy
+pandas
+pydantic==2.13.4
+pytest
+scikit_learn
+scipy
+statsmodels
+ta
+torch
+typing_extensions
+xgboost
+yfinance

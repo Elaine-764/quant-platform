@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import { useRegistry } from '../context/StrategyRegistry'
+import { useStrategyRun } from '../context/StrategyRunContext'
 import { useAssetOptions } from '../hooks/useAssetOptions'
 import type { EnhancementMeta, ParamMeta } from '../types'
 import './LeftPanel.css'
@@ -10,6 +11,13 @@ interface EnhancementInstance {
   instanceId: string
   enhancementId: string
   values: ParamValues
+}
+
+interface AssetCostInstance {
+  instanceId: string
+  asset: string
+  fixed: number
+  pct: number
 }
 
 function defaultsFor(params: ParamMeta[]): ParamValues {
@@ -149,11 +157,76 @@ function AddEnhancementRow({
   )
 }
 
+// One per-asset transaction-cost override: asset dropdown (from assets chosen in
+// the strategy params above) + fixed/pct cost fields.
+function AssetCostBlock({
+  instance,
+  availableAssets,
+  onChange,
+  onRemove,
+}: {
+  instance: AssetCostInstance
+  availableAssets: string[]
+  onChange: (instanceId: string, patch: Partial<AssetCostInstance>) => void
+  onRemove: (instanceId: string) => void
+}) {
+  return (
+    <div className="enh-block">
+      <div className="enh-block-header">
+        <span>Per-asset cost override</span>
+        <button className="btn ghost small" onClick={() => onRemove(instance.instanceId)}>
+          Remove
+        </button>
+      </div>
+      <div className="enh-block-params">
+        <label className="param-row">
+          <span className="param-label">asset</span>
+          <select
+            className="full"
+            value={instance.asset}
+            onChange={(e) => onChange(instance.instanceId, { asset: e.target.value })}
+          >
+            <option value="" disabled>
+              {availableAssets.length === 0 ? 'Select an asset above first…' : 'Select…'}
+            </option>
+            {availableAssets.map((a) => (
+              <option key={a} value={a}>
+                {a}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="param-row">
+          <span className="param-label">fixed</span>
+          <input
+            className="full"
+            type="number"
+            value={instance.fixed}
+            onChange={(e) => onChange(instance.instanceId, { fixed: Number(e.target.value) })}
+          />
+        </label>
+        <label className="param-row">
+          <span className="param-label">pct</span>
+          <input
+            className="full"
+            type="number"
+            step="0.0001"
+            value={instance.pct}
+            onChange={(e) => onChange(instance.instanceId, { pct: Number(e.target.value) })}
+          />
+        </label>
+      </div>
+    </div>
+  )
+}
+
 let instanceCounter = 0
 const nextInstanceId = () => `inst_${++instanceCounter}`
 
 export default function LeftPanel() {
-  const { strategies, enhancements } = useRegistry()
+    const { strategies, enhancements } = useRegistry()
+    const { loading, error: runError, setLoading, setError: setRunError, setResult } = useStrategyRun()
+
 
   const [selectedStrategyId, setSelectedStrategyId] = useState(strategies[0]?.id ?? '')
   const strategy = useMemo(
@@ -166,26 +239,38 @@ export default function LeftPanel() {
   )
   const [filters, setFilters] = useState<EnhancementInstance[]>([])
   const [sizers, setSizers] = useState<EnhancementInstance[]>([])
-  const [running, setRunning] = useState(false)
-  const [runError, setRunError] = useState<string | null>(null)
+
+  // Portfolio state
+  const [initialCash, setInitialCash] = useState<number>(100000)
+  const [txFixed, setTxFixed] = useState<number>(0)
+  const [txPct, setTxPct] = useState<number>(0)
+  const [txSlippagePct, setTxSlippagePct] = useState<number>(0)
+  const [assetCosts, setAssetCosts] = useState<AssetCostInstance[]>([])
 
   const filterCandidates = enhancements.filter((e) => e.category === 'filter')
   const sizerCandidates = enhancements.filter((e) => e.category === 'position_sizer')
+
+  // Assets currently chosen in the strategy's own asset-type params (e.g. "equity", "bond").
+  // Drives the dropdown options for per-asset cost overrides below.
+  const selectedAssets = useMemo(() => {
+    if (!strategy) return []
+    const assetParamNames = strategy.params.filter((p) => p.type === 'asset').map((p) => p.name)
+    const values = assetParamNames.map((name) => paramValues[name]).filter((v): v is string => !!v)
+    return Array.from(new Set(values))
+  }, [strategy, paramValues])
 
   function handleStrategyChange(id: string) {
     setSelectedStrategyId(id)
     const next = strategies.find((s) => s.id === id)
     setParamValues(next ? defaultsFor(next.params) : {})
+    setAssetCosts([]) // asset choices are about to change; stale overrides would point nowhere
   }
 
   function handleParamChange(name: string, value: string | number) {
     setParamValues((prev) => ({ ...prev, [name]: value }))
   }
 
-  function addEnhancement(
-    category: 'filter' | 'position_sizer',
-    enhancementId: string
-  ) {
+  function addEnhancement(category: 'filter' | 'position_sizer', enhancementId: string) {
     const meta = enhancements.find((e) => e.id === enhancementId)
     if (!meta) return
     const instance: EnhancementInstance = {
@@ -210,34 +295,71 @@ export default function LeftPanel() {
   ) {
     const updater = (prev: EnhancementInstance[]) =>
       prev.map((inst) =>
-        inst.instanceId === instanceId
-          ? { ...inst, values: { ...inst.values, [name]: value } }
-          : inst
+        inst.instanceId === instanceId ? { ...inst, values: { ...inst.values, [name]: value } } : inst
       )
     if (category === 'filter') setFilters(updater)
     else setSizers(updater)
+  }
+
+  function addAssetCost() {
+    setAssetCosts((prev) => [
+      ...prev,
+      { instanceId: nextInstanceId(), asset: selectedAssets[0] ?? '', fixed: 0, pct: 0 },
+    ])
+  }
+
+  function removeAssetCost(instanceId: string) {
+    setAssetCosts((prev) => prev.filter((a) => a.instanceId !== instanceId))
+  }
+
+  function updateAssetCost(instanceId: string, patch: Partial<AssetCostInstance>) {
+    setAssetCosts((prev) => prev.map((a) => (a.instanceId === instanceId ? { ...a, ...patch } : a)))
   }
 
   function resetParams() {
     if (strategy) setParamValues(defaultsFor(strategy.params))
     setFilters([])
     setSizers([])
+    setInitialCash(100000)
+    setTxFixed(0)
+    setTxPct(0)
+    setTxSlippagePct(0)
+    setAssetCosts([])
     setRunError(null)
   }
 
   async function runStrategy() {
     if (!strategy) return
-    setRunning(true)
+
+    if (!(initialCash > 0)) {
+      setRunError('Initial cash must be a positive number.')
+      return
+    }
+
+    setLoading(true)
     setRunError(null)
+    setResult(null) // clear stale results from a previous run while the new one is in flight
     try {
+      const by_asset: Record<string, { fixed: number; pct: number }> = {}
+      for (const ac of assetCosts) {
+        if (ac.asset) by_asset[ac.asset] = { fixed: ac.fixed, pct: ac.pct }
+      }
+
       const body = {
         params: paramValues,
         enhancements: {
           filters: filters.map((f) => ({ ...f.values, name: f.values.name ?? f.enhancementId })),
           position_sizers: sizers.map((s) => ({ name: s.enhancementId, sizer: s.values })),
         },
-        // TODO: pull real values from a Portfolio panel; stubbed for now.
-        portfolio: { initial_cash: 100000 },
+        portfolio: {
+          initial_cash: initialCash,
+          transaction_costs: {
+            fixed: txFixed,
+            pct: txPct,
+            slippage_pct: txSlippagePct,
+            by_asset,
+          },
+        },
       }
       const res = await fetch(`/api${strategy.endpoint}`, {
         method: 'POST',
@@ -249,11 +371,11 @@ export default function LeftPanel() {
         throw new Error(err.detail ? JSON.stringify(err.detail) : `Request failed (${res.status})`)
       }
       const result = await res.json()
-      console.log('strategy result', result) // TODO: pass this up to a results panel
+      setResult(result)
     } catch (e: any) {
       setRunError(e.message ?? 'Failed to run strategy')
     } finally {
-      setRunning(false)
+      setLoading(false)
     }
   }
 
@@ -261,11 +383,7 @@ export default function LeftPanel() {
     <aside className="left-panel">
       <section className="section">
         <h3>Strategy</h3>
-        <select
-          className="full"
-          value={selectedStrategyId}
-          onChange={(e) => handleStrategyChange(e.target.value)}
-        >
+        <select className="full" value={selectedStrategyId} onChange={(e) => handleStrategyChange(e.target.value)}>
           {strategies.map((s) => (
             <option key={s.id} value={s.id}>
               {s.title}
@@ -278,12 +396,7 @@ export default function LeftPanel() {
         <h3>Parameters</h3>
         <div className="params">
           {strategy?.params.map((p) => (
-            <ParamField
-              key={p.name}
-              param={p}
-              value={paramValues[p.name]}
-              onChange={handleParamChange}
-            />
+            <ParamField key={p.name} param={p} value={paramValues[p.name]} onChange={handleParamChange} />
           ))}
         </div>
       </section>
@@ -299,18 +412,13 @@ export default function LeftPanel() {
                 key={inst.instanceId}
                 meta={meta}
                 instance={inst}
-                onChangeParam={(id, name, value) =>
-                  updateEnhancementParam('filter', id, name, value)
-                }
+                onChangeParam={(id, name, value) => updateEnhancementParam('filter', id, name, value)}
                 onRemove={(id) => removeEnhancement('filter', id)}
               />
             )
           })}
         </div>
-        <AddEnhancementRow
-          candidates={filterCandidates}
-          onAdd={(id) => addEnhancement('filter', id)}
-        />
+        <AddEnhancementRow candidates={filterCandidates} onAdd={(id) => addEnhancement('filter', id)} />
       </section>
 
       <section className="section">
@@ -324,28 +432,87 @@ export default function LeftPanel() {
                 key={inst.instanceId}
                 meta={meta}
                 instance={inst}
-                onChangeParam={(id, name, value) =>
-                  updateEnhancementParam('position_sizer', id, name, value)
-                }
+                onChangeParam={(id, name, value) => updateEnhancementParam('position_sizer', id, name, value)}
                 onRemove={(id) => removeEnhancement('position_sizer', id)}
               />
             )
           })}
         </div>
-        <AddEnhancementRow
-          candidates={sizerCandidates}
-          onAdd={(id) => addEnhancement('position_sizer', id)}
-        />
+        <AddEnhancementRow candidates={sizerCandidates} onAdd={(id) => addEnhancement('position_sizer', id)} />
+      </section>
+
+      <section className="section">
+        <h3>Portfolio</h3>
+        <div className="params">
+          <label className="param-row">
+            <span className="param-label">initial cash</span>
+            <input
+              className="full"
+              type="number"
+              min={0}
+              step="any"
+              value={initialCash}
+              onChange={(e) => setInitialCash(Number(e.target.value))}
+            />
+          </label>
+          {initialCash <= 0 && <span className="param-error">Initial cash must be positive.</span>}
+
+          <label className="param-row">
+            <span className="param-label">transaction cost — fixed</span>
+            <input className="full" type="number" value={txFixed} onChange={(e) => setTxFixed(Number(e.target.value))} />
+          </label>
+          <label className="param-row">
+            <span className="param-label">transaction cost — pct</span>
+            <input
+              className="full"
+              type="number"
+              step="0.0001"
+              value={txPct}
+              onChange={(e) => setTxPct(Number(e.target.value))}
+            />
+          </label>
+          <label className="param-row">
+            <span className="param-label">slippage pct</span>
+            <input
+              className="full"
+              type="number"
+              step="0.0001"
+              value={txSlippagePct}
+              onChange={(e) => setTxSlippagePct(Number(e.target.value))}
+            />
+          </label>
+        </div>
+
+        <h4 className="subsection-label">Per-asset cost overrides</h4>
+        <div className="enh-list">
+          {assetCosts.map((inst) => (
+            <AssetCostBlock
+              key={inst.instanceId}
+              instance={inst}
+              availableAssets={selectedAssets}
+              onChange={updateAssetCost}
+              onRemove={removeAssetCost}
+            />
+          ))}
+        </div>
+        <div className="add-enh-row">
+          <button className="btn ghost small" onClick={addAssetCost} disabled={selectedAssets.length === 0}>
+            + Add asset override
+          </button>
+        </div>
+        {selectedAssets.length === 0 && (
+          <span className="param-error">Select assets in Parameters above to enable per-asset overrides.</span>
+        )}
       </section>
 
       {runError && <div className="run-error">{runError}</div>}
 
       <div className="panel-actions">
-        <button className="btn ghost" onClick={resetParams} disabled={running}>
+        <button className="btn ghost" onClick={resetParams} disabled={loading}>
           Reset params
         </button>
-        <button className="btn primary" onClick={runStrategy} disabled={running || !strategy}>
-          {running ? 'Running…' : 'Run strategy'}
+        <button className="btn primary" onClick={runStrategy} disabled={loading || !strategy}>
+          {loading ? 'Running…' : 'Run strategy'}
         </button>
       </div>
     </aside>

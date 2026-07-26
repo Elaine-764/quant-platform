@@ -23,10 +23,11 @@ class Portfolio:
         fee += price * quantity * asset_cost.get("pct", 0.0)
         return fee
 
-    def update(self, signal: FullSignalEvent, price):
+    def update(self, signal: FullSignalEvent, prices):
         sig = signal.signal
         asset = signal.asset
         quantity = signal.size
+        price = prices[asset]
         cost = self.calculate_cost(asset, price, quantity)
         trade_value = price * quantity
 

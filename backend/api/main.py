@@ -4,13 +4,14 @@ import os
 
 from api.models.engine import HealthResponse, InstrumentListResponse, PricesResponse
 from api.strategy_utils import load_prices
-from api.routers import strategies, backtest, engine
+from api.routers import strategies, backtest, engine, assets
 
 app = FastAPI(title="Quant Platform API")
 
 app.include_router(strategies.router)
 app.include_router(backtest.router)
 app.include_router(engine.router)
+app.include_router(assets.router) 
 
 # data directory (processed CSVs)
 DATA_DIR = Path(__file__).resolve().parents[1] / "data" / "processed"

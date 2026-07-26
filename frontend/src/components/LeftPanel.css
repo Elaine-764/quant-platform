@@ -1,5 +1,52 @@
-.left-panel .section h3 { margin:6px 0 8px 0 }
+.left-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden; /* prevent any child from pushing the panel wider */
+}
 .left-panel .enh-list { display:flex; flex-direction:column; gap:6px }
 .left-panel .panel-actions { display:flex; justify-content:space-between }
 .enh-item { display:flex; align-items:center; gap:8px }
-.params input { width:100%; padding:6px; border-radius:6px; border:1px solid rgba(0,0,0,0.06) }
+
+.section {
+  min-width: 0; /* critical: without this, flex children can overflow their parent */
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.full {
+  width: 100%;
+  box-sizing: border-box; /* padding/border no longer add to the declared width */
+}
+
+.enh-block {
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.enh-block-params {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  width: 100%;
+}
+
+.param-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.param-row input,
+.param-row select {
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0; /* lets inputs shrink below their default intrinsic width */
+}

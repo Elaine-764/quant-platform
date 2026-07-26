@@ -43,7 +43,7 @@ class TransactionCosts(BaseModel):
     fixed: float
     pct: float
     slippage_pct: float
-    by_asset: Optional[List[Dict]] = None
+    by_asset: Optional[Dict[str, Any]] = None
 
 class PortfolioModel(BaseModel):
     initial_cash: float

@@ -18,8 +18,16 @@ export function useAssetOptions(assetClass: AssetClass) {
     let cancelled = false
     setLoading(true)
     fetch(`/api/assets?type=${assetClass}`)
-      .then((res) => {
-        if (!res.ok) throw new Error(`Failed to load ${assetClass} list`)
+      .then(async (res) => {
+        const contentType = res.headers.get('content-type') ?? ''
+        if (!res.ok || !contentType.includes('application/json')) {
+          // Almost always means the request never reached the API (wrong path,
+          // missing dev-server proxy, or backend not running) and got an HTML
+          // fallback page instead.
+          throw new Error(
+            `Expected JSON from /api/assets but got ${res.status} (${contentType || 'unknown content-type'}). Check that the backend is running and the dev server proxy for /api is configured.`
+          )
+        }
         return res.json()
       })
       .then((data: { assets: string[] }) => {

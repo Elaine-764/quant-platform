@@ -1,17 +1,39 @@
 # strategy_defs.py
 from api.routers.strategy_registry import register_strategy
-from api.models.strategies import EquityBondsModel, DeltaHedgingModel, CointegrationModel
-from strategies.cross_asset.equity_bonds import EquitiesBondsDynamic
+from api.models.strategies import EquityBondsModel, CrossAssetMomentumModel, RelativeValueStrategyModel, DeltaHedgingModel, CointegrationModel
+from strategies.cross_asset.equity_bonds import EquitiesBondsDynamic, CrossAssetMomentum, RelativeValueStrategy
 from strategies.derivatives.delta_hedging import DeltaHedging
 from strategies.mean_reversion.cointegration_based import CointegrationBased
+import pandas as pd
 
-@register_strategy("cross_asset/equity_bonds", EquityBondsModel, asset_fields=["equity", "bond"])
+@register_strategy("cross_asset/equity_bonds_dynamic", EquityBondsModel, asset_fields=["equity", "bond"])
 def _build_equity_bonds(params: EquityBondsModel, price_data, enhancements):
     return EquitiesBondsDynamic(
         data=None, enhancements=enhancements,
         eq_data=price_data[params.equity], bonds_data=price_data[params.bond],
         equity=params.equity, bond=params.bond,
         lookback=params.lookback, bond_momentum_window=params.bond_momentum_window,
+    )
+
+@register_strategy("cross_asset/cross_asset_momentum", CrossAssetMomentumModel, multi_asset_fields=["assets"])
+def _build_cross_asset_momentum(params, price_data, enhancements):
+    asset_dfs = [price_data[a] for a in params.assets]
+    return CrossAssetMomentum(
+        data=None, enhancements=enhancements,
+        assets=params.assets, asset_dfs=asset_dfs,
+        lookback=params.lookback, rebalance_freq=params.rebalance_freq,
+    )
+
+@register_strategy("cross_asset/relative_value", RelativeValueStrategyModel, asset_fields=["asset1, asset2"])
+def _build_relative_value(params: RelativeValueStrategyModel, price_data, enhancements):
+    asset_dfs = []
+    for a in params.assets:
+        asset_dfs.append(price_data[a])
+    return RelativeValueStrategy(
+        data=None, enhancements=enhancements,
+        asset1=params.asset1, asset2=params.asset2,
+        asset1_data=price_data[params.asset1], asset2_data=price_data[params.asset2], 
+        window=params.window, threshold=params.threshold, hedge_ratio=params.hedge_ratio
     )
 
 @register_strategy("derivatives/delta_hedging", DeltaHedgingModel, asset_fields=["equity"])

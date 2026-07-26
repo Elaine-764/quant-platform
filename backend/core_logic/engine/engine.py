@@ -6,6 +6,8 @@ from strategies.enhancements.position_resizing import PositionSizer
 from core_logic.portfolio.portfolio import Portfolio
 from strategies.enhancements.signal_types import SignalType
 from strategies.base_strategy import Strategy
+import pandas as pd
+
 class BacktestEngine:
     def __init__(self, data, strategy: Strategy, portfolio: Portfolio):
         self.data = data # TODO: might need to process this before instantiation
@@ -16,11 +18,16 @@ class BacktestEngine:
     def run(self):
         self.strategy.compute_factors()
         for t in range(len(self.data)):
-            print(self.data.columns)
-            price = self.data["Close"][t] 
+            # print(self.data.columns)
+            cols = self.data.columns
+            prices = {}
+            for col in cols:
+                if "Close" in col:
+                    prices[col.rstrip("_Close")] = self.data[col][t] 
+            # print(prices)
 
             # 1. Create market event
-            event = MarketEvent(timestamp=t, price=price)
+            event = MarketEvent(timestamp=t, prices=prices)
 
             # get current positions snapshot
             pos = self.portfolio.positions
@@ -30,34 +37,29 @@ class BacktestEngine:
 
             # 3. Portfolio updates based on signal
             for signal in signals:
-                self.portfolio.update(signal, price)
+                # print(f"asset = {signal.asset}")
+                self.portfolio.update(signal, prices)
             self.strategy.update_portfolio_state(self.portfolio.positions)
             # do we need to maintain portfolio in two places
 
             # 4. Record state
-            self.record(t, price)
+            self.record(t, prices)
 
         return self.get_results()
     
-    def record(self, t, price): # constructing the equity curve
+    def record(self, t, prices): # constructing the equity curve
+        raw_date = self.data['Date'].iloc[t]
+        date_value = pd.to_datetime(raw_date).to_pydatetime()
         self.history.append({
             "timestamp": t,
-            "price": price,
-            "portfolio_value": self.portfolio.total_value(price), 
-            "position": self.portfolio.positions
+            "date": date_value,
+            "price": prices,
+            "portfolio_value": self.portfolio.total_value(prices), 
+            "position": dict(self.portfolio.positions)
         })
 
     def get_results(self): # retrieving the equity curve
-        return self.history
+        return {
+            "history": self.history,
+        }
     
-
-'''
-Notes:
-- in two asset strategies, signal represents the percentage of portfolio that's in asset 1
-- given enhancements
-    - position resizer: resize on the incremental/decremental difference between current signal
-      and previous portfolio position
-    - filter or risk control: 
-        --> this remains a question for both single- and multi- asset strategies
-- portfolio: contains positision as a dict mapping asset -> quantity
-'''

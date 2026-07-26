@@ -4,6 +4,7 @@ from core_logic.events.signal_event import SignalEvent
 import numpy as np
 import pandas as pd
 
+
 class EquitiesBondsDynamic(Strategy):
     """Cross-asset strategy balancing equities vs bonds.
 
@@ -12,15 +13,6 @@ class EquitiesBondsDynamic(Strategy):
     When VIX is high, shift to bonds for safety.
     """
     def __init__(self, data, enhancements, eq_data, bonds_data, equity, bond, lookback=20, bond_momentum_window=10):
-        """
-        Args:
-            data: DataFrame with OHLCV data for both assets
-            equity_column: Column name for equity prices
-            bond_column: Column name for bond prices
-            vix_column: Optional VIX column for volatility regime
-            lookback: Period for relative strength calculation
-            bond_momentum_window: Window for bond momentum
-        """
         eq_data = eq_data.rename(columns={
             "High": f'{equity}_High',
             'Low': f'{equity}_Low',
@@ -28,7 +20,7 @@ class EquitiesBondsDynamic(Strategy):
             'Close': f'{equity}_Close',
             'Volume': f'{equity}_Volume'
             })
-        bonds_data= bonds_data.rename(columns={
+        bonds_data = bonds_data.rename(columns={
             "High": f'{bond}_High',
             'Low': f'{bond}_Low',
             'Open': f'{bond}_Open',
@@ -39,7 +31,7 @@ class EquitiesBondsDynamic(Strategy):
         DATA_DIR = Path(__file__).resolve().parents[2] / "data" / "processed"
         vix_data = pd.read_csv(f'{DATA_DIR}/^VIX.csv')
         vix = 'VIX'
-        vix_data= vix_data.rename(columns={
+        vix_data = vix_data.rename(columns={
             "High": f'{vix}_High',
             'Low': f'{vix}_Low',
             'Open': f'{vix}_Open',
@@ -48,9 +40,11 @@ class EquitiesBondsDynamic(Strategy):
             })
         data = pd.merge(eq_data, bonds_data, on='Date')
         data = pd.merge(data, vix_data, on='Date')
-        
-        super().__init__(data, enhancements)
 
+        super().__init__(data, enhancements)
+        self.equity = equity
+        self.bond = bond
+        self.vix = vix
         self.equity_column = f'{equity}_Close'
         self.bond_column = f'{bond}_Close'
         self.vix_column = f'{vix}_Close'
@@ -58,106 +52,117 @@ class EquitiesBondsDynamic(Strategy):
         self.bond_momentum_window = bond_momentum_window
         self.asset = equity
 
+        # Tells the engine which columns to pull into MarketEvent.prices for this strategy
+        self.price_columns = [self.equity_column, self.bond_column, self.vix_column]
+
     def compute_factors(self):
         """Pre-compute relative strength and momentum indicators."""
-        # Equity returns
         if self.equity_column in self.data.columns:
             self.data['equity_ret'] = self.data[self.equity_column].pct_change(self.lookback)
         else:
-            self.data['equity_ret'] = self.data['close'].pct_change(self.lookback)
+            self.data['equity_ret'] = self.data['Close'].pct_change(self.lookback)
 
-        # Bond momentum (attractive rising bonds mean safety)
         if self.bond_column in self.data.columns:
             self.data['bond_mom'] = self.data[self.bond_column].pct_change(self.bond_momentum_window)
         else:
             self.data['bond_mom'] = 0
 
-        # Relative strength: equity momentum vs bond momentum
         self.data['rel_strength'] = self.data['equity_ret'] - self.data['bond_mom'] * 0.5
-
-        self.asset = self.asset
 
     def on_event(self, event: Event, positions=None):
         t = event.timestamp
 
-        if t < max(self.lookback, self.bond_momentum_window):
-            return [SignalEvent(t, self.equity_column, 0), SignalEvent(t, self.bond_column, 0)]
+        # Pull everything needed from the event's price dict, not self.data
+        equity_price = event.prices.get(self.equity)
+        bond_price = event.prices.get(self.bond)
+        vix_price = event.prices.get(self.vix)
 
+        if equity_price is None or bond_price is None:
+            # Missing price for one of the required assets this tick — no signal.
+            return [SignalEvent(t, self.equity, 0), SignalEvent(t, self.bond, 0)]
+
+        if t < max(self.lookback, self.bond_momentum_window):
+            return [SignalEvent(t, self.equity, 0), SignalEvent(t, self.bond, 0)]
+
+        # Factors are precomputed series (computed once in compute_factors), still indexed by t
         rel_strength = self.data['rel_strength'].iloc[t]
         bond_mom = self.data['bond_mom'].iloc[t]
 
-        # High VIX (if available) shifts toward bonds
-        vix_high = False
-        if self.vix_column and self.vix_column in self.data.columns:
-            vix_value = self.data[self.vix_column].iloc[t]
-            vix_high = vix_value > 20  # Elevated VIX threshold
+        vix_high = vix_price is not None and vix_price > 20
 
-        # Overweight equities: positive relative strength + non-elevated VIX
         if rel_strength > 0.02 and not vix_high and bond_mom < 0.01:
-            return [SignalEvent(t, self.equity_column, 1), SignalEvent(t, self.bond_column, -1)]
+            return [SignalEvent(t, self.equity, 1), SignalEvent(t, self.bond, -1)]
 
-        # Overweight bonds: bond momentum strong or VIX high
         if vix_high or bond_mom > 0.02:
-            return [SignalEvent(t, self.equity_column, -1), SignalEvent(t, self.bond_column, 1)]
+            return [SignalEvent(t, self.equity, -1), SignalEvent(t, self.bond, 1)]
 
-        return [SignalEvent(t, self.equity_column, 0), SignalEvent(t, self.bond_column, 0)]
+        return [SignalEvent(t, self.equity, 0), SignalEvent(t, self.bond, 0)]
 
 
 class CrossAssetMomentum(Strategy):
-    """Trade the asset group with strongest momentum.
+    """Trade the asset group with strongest momentum."""
+    def __init__(self, data, enhancements, assets, asset_dfs, lookback=20, rebalance_freq=5):
+        super().__init__(data=None, enhancements=enhancements)
 
-    Compares momentum across multiple asset classes and trades the
-    strongest performer while shorting the weakest.
-    """
-    def __init__(self, data, assets, lookback=20, rebalance_freq=5):
-        """
-        Args:
-            data: DataFrame containing multiple asset prices
-            assets: List of column names for different assets
-            lookback: Period for momentum calculation
-            rebalance_freq: Periods between rebalancing
-        """
-        super().__init__(data)
+        if len(assets) == 0 or len(asset_dfs) == 0 or len(asset_dfs) != len(assets):
+            raise ValueError("Asset names and asset dataframes must be of the same length and of lengths more than 0.")
+
+        data = asset_dfs[0].rename(columns={
+            "High": f'{assets[0]}_High',
+            'Low': f'{assets[0]}_Low',
+            'Open': f'{assets[0]}_Open',
+            'Close': f'{assets[0]}_Close',
+            'Volume': f'{assets[0]}_Volume',
+        })
+        for i in range(1, len(assets)):
+            temp = asset_dfs[i].rename(columns={
+                "High": f'{assets[i]}_High',
+                'Low': f'{assets[i]}_Low',
+                'Open': f'{assets[i]}_Open',
+                'Close': f'{assets[i]}_Close',
+                'Volume': f'{assets[i]}_Volume',
+            })
+            data = pd.merge(data, temp, on='Date')  
+
+        self.data = data
         self.assets = assets
         self.lookback = lookback
         self.rebalance_freq = rebalance_freq
         self.last_rebalance = -rebalance_freq
-
-    def compute_factors(self, asset, data):
-        """Pre-compute momentum for all assets."""
+        self.price_columns = list(assets)
+    
+    def compute_factors(self):
         for asset_name in self.assets:
-            if asset_name in data.columns:
-                col_name = f'{asset_name}_momentum'
-                data[col_name] = data[asset_name].pct_change(self.lookback)
-        self.asset = asset
+            close_col = f'{asset_name}_Close'
+            if close_col in self.data.columns:
+                mom_col = f'{asset_name}_momentum'
+                self.data[mom_col] = self.data[close_col].pct_change(self.lookback)
 
     def on_event(self, event: Event, positions=None):
         t = event.timestamp
 
-        if t < self.lookback:
-            return [SignalEvent(t, getattr(self, 'asset', None), 0)]
+        # Prices for every tracked asset, straight from the event
+        prices = {asset: event.prices.get(asset) for asset in self.assets}
 
-        # Only rebalance at specified intervals
+        if t < self.lookback or any(p is None for p in prices.values()):
+            return [SignalEvent(t, asset, 0) for asset in self.assets]
+
         if (t - self.last_rebalance) < self.rebalance_freq:
-            return [SignalEvent(t, getattr(self, 'asset', None), 0)]
+            return [SignalEvent(t, asset, 0) for asset in self.assets]
 
         self.last_rebalance = t
 
-        # Calculate momentum for each asset
         momentums = {}
         for asset_name in self.assets:
-            col_name = f'{asset_name}_momentum'
-            if col_name in self.data.columns:
-                momentums[asset_name] = self.data[col_name].iloc[t]
+            mom_col = f'{asset_name}_momentum'
+            if mom_col in self.data.columns:
+                momentums[asset_name] = self.data[mom_col].iloc[t]
 
         if not momentums:
-            return [SignalEvent(t, getattr(self, 'asset', None), 0)]
+            return [SignalEvent(t, asset, 0) for asset in self.assets]
 
-        # Find strongest and weakest
         strongest = max(momentums, key=momentums.get)
         strongest_mom = momentums[strongest]
-
-        # Buy strongest momentum, sell weakest
         weakest = min(momentums, key=momentums.get)
         weakest_mom = momentums[weakest]
 
@@ -166,77 +171,75 @@ class CrossAssetMomentum(Strategy):
         elif strongest_mom < -0.02:
             return [SignalEvent(t, strongest, -1), SignalEvent(t, weakest, 1)]
 
-        return [SignalEvent(t, getattr(self, 'asset', None), 0)]
-
+        return [SignalEvent(t, asset, 0) for asset in self.assets]
 
 class RelativeValueStrategy(Strategy):
-    """Trade spread between two assets based on mean reversion.
-
-    When one asset significantly outperforms, expect reversion.
-    Similar to pairs trading but for cross-asset classes.
-    """
-    def __init__(self, data, asset1_column, asset2_column,
+    """Trade spread between two assets based on mean reversion."""
+    def __init__(self, data, enhancements, asset1, asset2, asset1_data, asset2_data,
                  window=60, threshold=1.5, hedge_ratio=None):
-        """
-        Args:
-            data: DataFrame with both asset prices
-            asset1_column: Column for first asset
-            asset2_column: Column for second asset
-            window: Period for mean/std calculation
-            threshold: Z-score threshold for signals
-            hedge_ratio: Relative weighting (auto-calculated if None)
-        """
-        super().__init__(data)
-        self.asset1_column = asset1_column
-        self.asset2_column = asset2_column
+        super().__init__(data=None, enhancements=enhancements)
+        asset1_data = asset1_data.rename(columns={
+                "High": f'{asset1}_High',
+                'Low': f'{asset1}_Low',
+                'Open': f'{asset1}_Open',
+                'Close': f'{asset1}_Close',
+                'Volume': f'{asset1}_Volume'
+                }
+            )
+        asset2_data = asset2_data.rename(columns={
+                "High": f'{asset2}_High',
+                'Low': f'{asset2}_Low',
+                'Open': f'{asset2}_Open',
+                'Close': f'{asset2}_Close',
+                'Volume': f'{asset2}_Volume'
+                }
+            )
+        self.data = pd.merge(asset1_data, asset2_data, on='Date')
+        self.asset1 = asset1
+        self.asset2 = asset2
         self.window = window
         self.threshold = threshold
         self.hedge_ratio = hedge_ratio
 
-    def compute_factors(self, asset, data):
-        """Pre-compute spread and statistics."""
-        price1 = data[self.asset1_column]
-        price2 = data[self.asset2_column]
+    def compute_factors(self):
+        price1 = self.data[f'{self.asset1}_Close']
+        price2 = self.data[f'{self.asset2}_Close']
 
-        # Calculate hedge ratio
         if self.hedge_ratio is None:
             ratio = price1.std() / price2.std() * price1.corr(price2)
             self.hedge_ratio = np.clip(ratio, 0.1, 10)
         else:
             self.hedge_ratio = float(self.hedge_ratio)
 
-        # Normalize prices to comparable scale
         norm_price1 = price1 / price1.iloc[0]
         norm_price2 = price2 / price2.iloc[0]
 
-        # Calculate spread
-        data['cross_spread'] = norm_price1 - (self.hedge_ratio * norm_price2)
-        data['cross_spread_mean'] = data['cross_spread'].rolling(self.window).mean()
-        data['cross_spread_std'] = data['cross_spread'].rolling(self.window).std()
-
-        self.asset = asset
+        self.data['cross_spread'] = norm_price1 - (self.hedge_ratio * norm_price2)
+        self.data['cross_spread_mean'] = self.data['cross_spread'].rolling(self.window).mean()
+        self.data['cross_spread_std'] = self.data['cross_spread'].rolling(self.window).std()
 
     def on_event(self, event: Event, positions=None):
         t = event.timestamp
 
-        if t < self.window:
-            return [SignalEvent(t, self.asset1_column, 0), SignalEvent(t, self.asset2_column, 0)]
+        price1 = event.prices.get(self.asset1)
+        price2 = event.prices.get(self.asset2)
+
+        if t < self.window or price1 is None or price2 is None:
+            return [SignalEvent(t, self.asset1, 0), SignalEvent(t, self.asset2, 0)]
 
         spread = self.data['cross_spread'].iloc[t]
         mean = self.data['cross_spread_mean'].iloc[t]
         std = self.data['cross_spread_std'].iloc[t]
 
         if std == 0 or np.isnan(std):
-            return [SignalEvent(t, self.asset1_column, 0), SignalEvent(t, self.asset2_column, 0)]
+            return [SignalEvent(t, self.asset1, 0), SignalEvent(t, self.asset2, 0)]
 
         z_score = (spread - mean) / std
 
-        # Buy when spread is low (asset1 cheap vs asset2)
         if z_score < -self.threshold:
-            return [SignalEvent(t, self.asset1_column, 1), SignalEvent(t, self.asset2_column, -1)]
+            return [SignalEvent(t, self.asset1, 1), SignalEvent(t, self.asset2, -1)]
 
-        # Sell when spread is high (asset1 expensive vs asset2)
         if z_score > self.threshold:
-            return [SignalEvent(t, self.asset1_column, -1), SignalEvent(t, self.asset2_column, 1)]
+            return [SignalEvent(t, self.asset1, -1), SignalEvent(t, self.asset2, 1)]
 
-        return [SignalEvent(t, self.asset1_column, 0), SignalEvent(t, self.asset2_column, 0)]
+        return [SignalEvent(t, self.asset1, 0), SignalEvent(t, self.asset2, 0)]

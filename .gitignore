@@ -7,3 +7,4 @@ ENHANCEMENT_USAGE.md
 **/*.ipynb
 **/*delete*
 **/*notes*
+**/.venv/

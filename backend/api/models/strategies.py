@@ -1,6 +1,6 @@
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional 
 from pydantic import BaseModel, Field
-
+from datetime import datetime
 from api.models.enhancements import PositionSizerBase, EnhancementsModel, FilterBase
 
 
@@ -11,12 +11,18 @@ class StrategyRequest(BaseModel):
 	enhancements: EnhancementsModel
 	position_sizer: Optional[PositionSizerBase] = None
 
+class EquityCurvePoint(BaseModel):
+	timestamp: int
+	date: datetime
+	price: Dict[str, float]
+	portfolio_value: float
+	position: Dict[str, float]
 
 class StrategyResponse(BaseModel):
-	strategy: str
-	signal_count: int = 0
-	notes: Optional[str] = None
-
+    strategy: str
+    signal_count: int = 0
+    notes: Optional[str] = None
+    history: List[EquityCurvePoint] = []
 
 # ------------------------
 # Specific strategy models
@@ -27,6 +33,18 @@ class EquityBondsModel(BaseModel):
 	bond: str
 	lookback: int
 	bond_momentum_window: int
+
+class CrossAssetMomentumModel(BaseModel):
+	assets: List[str]
+	lookback: int
+	rebalance_freq: int
+
+class RelativeValueStrategyModel(BaseModel):
+	asset1: str
+	asset2: str
+	window: int
+	threshold: float
+	hedge_ratio: float
 
 class DeltaHedgingModel(BaseModel):
     equity: str

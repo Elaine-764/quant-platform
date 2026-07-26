@@ -23,7 +23,9 @@ class GenericStrategyRequest(BaseModel):
 
 @router.post("/strategy/{strategy_name:path}", response_model=StrategyResponse, tags=["strategies"])
 def run_strategy(strategy_name: str, request: GenericStrategyRequest):
+    # print(f'request: {request}')
     spec = REGISTRY.get(strategy_name)
+    # print(f'spec: {spec}')
     if spec is None:
         raise HTTPException(404, f"Unknown strategy '{strategy_name}'. Available: {sorted(REGISTRY)}")
 
@@ -42,7 +44,13 @@ def run_strategy(strategy_name: str, request: GenericStrategyRequest):
     port = build_portfolio(portfolio=request.portfolio)
 
     engine = BacktestEngine(data=strat.data, strategy=strat, portfolio=port)
-    return engine.run()
+    result = engine.run()
+    return StrategyResponse(
+        strategy=strategy_name,
+        signal_count=len(result["history"]),   # or a real signal count if you track one separately
+        notes=None,
+        history=result["history"],
+    )
 
 @router.get("/strategy", tags=["strategies"])
 def list_strategies():
