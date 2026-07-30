@@ -13,3 +13,4 @@ torch
 typing_extensions
 xgboost
 yfinance
+uvicorn

@@ -8,8 +8,8 @@ class OscillatorMeanReversion(Strategy):
 
     Buy when RSI < 30 (oversold), sell when RSI > 70 (overbought).
     """
-    def __init__(self, data, asset, window=14, buy_threshold=30, sell_threshold=70):
-        super().__init__(data)
+    def __init__(self, data, enhancements, asset, window=14, buy_threshold=30, sell_threshold=70):
+        super().__init__(data, enhancements)
         self.window = window
         self.asset = asset
         self.buy_threshold = buy_threshold

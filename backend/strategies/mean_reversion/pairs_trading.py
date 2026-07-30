@@ -17,7 +17,7 @@ class PairsTrading(Strategy):
     OHLCV columns plus a 'Date' column to merge on.
     """
 
-    def __init__(self, data_dfs: list[pd.DataFrame], assets: list[str], window=60, threshold=2.0, hedge_ratio=None):
+    def __init__(self, data, enhancements, data_dfs: list[pd.DataFrame], assets: list[str], window=60, threshold=2.0, hedge_ratio=None):
         """
         Args:
             data_dfs: list of DataFrames, one per asset (OHLCV + 'Date')
@@ -44,7 +44,7 @@ class PairsTrading(Strategy):
         data = reduce(lambda left, right: pd.merge(left, right, on='Date'), renamed_dfs)
         data = data.sort_values('Date').reset_index(drop=True)
 
-        super().__init__(data)
+        super().__init__(data, enhancements)
         self.assets = assets
         self.window = window
         self.threshold = threshold
@@ -105,10 +105,10 @@ class EngleGranger(PairsTrading):
     """Pairs trading using the Engle-Granger two-step cointegration test to
     derive the hedge ratio and validate mean-reversion before trading."""
 
-    def __init__(self, data_dfs, assets, window=60, threshold=2, hedge_ratio=None):
+    def __init__(self, data, enhancements, data_dfs, assets, window=60, threshold=2, hedge_ratio=None):
         if len(data_dfs) != 2 or len(assets) != 2:
             raise ValueError("Please enter exactly two dataframes and two asset names.")
-        super().__init__(data_dfs, assets, window, threshold, hedge_ratio)
+        super().__init__(data, enhancements, data_dfs, assets, window, threshold, hedge_ratio)
         self.cointegration_result = None
 
     @staticmethod
@@ -180,10 +180,10 @@ class Johansen(PairsTrading):
     """Pairs/basket trading using the Johansen cointegration test, which
     generalizes to N >= 2 assets and finds the cointegration rank directly."""
 
-    def __init__(self, data_dfs, assets, window=60, threshold=2, hedge_ratio=None, confidence_level=95):
+    def __init__(self, data, enhancements, data_dfs, assets, window=60, threshold=2, hedge_ratio=None, confidence_level=95):
         if len(data_dfs) < 2 or len(assets) < 2:
             raise ValueError("Please enter at least two dataframes and two asset names.")
-        super().__init__(data_dfs, assets, window, threshold, hedge_ratio)
+        super().__init__(data, enhancements, data_dfs, assets, window, threshold, hedge_ratio)
         self.confidence_level = confidence_level
         self.johansen_result = None
 

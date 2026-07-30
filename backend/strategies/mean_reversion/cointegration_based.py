@@ -10,7 +10,7 @@ class CointegrationBased(Strategy):
     For two cointegrated assets, trades deviations from the long-run
     equilibrium relationship (spread). Assumes cointeg relationship exists.
     """
-    def __init__(self, data1, data2, asset1, asset2, window=60, threshold=2.0, beta=None):
+    def __init__(self, data, enhancements, data1, data2, asset1, asset2, window=60, threshold=2.0, beta=None):
         """
         Args:
             data: DataFrame with OHLCV data
@@ -36,7 +36,7 @@ class CointegrationBased(Strategy):
             'Volume': f'{asset2}_Volume'
             })
         data = pd.merge(data1, data2, on='Date')
-        super().__init__(data)
+        super().__init__(data, enhancements)
         self.asset1 = asset1
         self.asset2 = asset2
         self.window = window

@@ -3,6 +3,7 @@
 ENHANCEMENT_USAGE.md
 **/.DS_Store
 **/*test*
+!**/*backtest*
 **/*todo*
 **/*.ipynb
 **/*delete*

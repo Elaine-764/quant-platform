@@ -83,11 +83,11 @@ function EquityCurveChart({
           {/* Strategy Indicator */}
           <line x1={0} y1={0} x2={20} y2={0} stroke="#60a5fa" strokeWidth={2} />
           <text x={26} y={4} textAnchor="start">Strategy</text>
-          
+
           {/* Buy & Hold Indicator */}
           {showBuyHold && (
             <g transform="translate(100, 0)">
-              <line x1={0} y1={0} x2={20} y2={0} stroke="rgba(255,255,255,0.4)" strokeDasharray="4 3" strokeWidth={1.5} />
+              <line x1={0} y1={0} x2={20} y2={0} stroke="#f59e0b" strokeDasharray="4 3" strokeWidth={1.5} />
               <text x={26} y={4} textAnchor="start">Buy & Hold</text>
             </g>
           )}
@@ -95,11 +95,11 @@ function EquityCurveChart({
 
         {/* Grid Lines & Boundaries */}
         {yTicks.map((v, i) => (
-          <line key={`grid-y-${i}`} x1={margin.left} x2={width - margin.right} y1={yFor(v)} y2={yFor(v)} stroke="rgba(255,255,255,0.08)" strokeWidth={1} />
+          <line key={`grid-y-${i}`} x1={margin.left} x2={width - margin.right} y1={yFor(v)} y2={yFor(v)} stroke="rgba(0,0,0,0.1)" strokeWidth={1} />
         ))}
 
-        <line x1={margin.left} x2={margin.left} y1={margin.top} y2={margin.top + innerHeight} stroke="rgba(255,255,255,0.3)" strokeWidth={1} />
-        <line x1={margin.left} x2={width - margin.right} y1={margin.top + innerHeight} y2={margin.top + innerHeight} stroke="rgba(255,255,255,0.3)" strokeWidth={1} />
+        <line x1={margin.left} x2={margin.left} y1={margin.top} y2={margin.top + innerHeight} stroke="rgba(0,0,0,0.3)" strokeWidth={1} />
+        <line x1={margin.left} x2={width - margin.right} y1={margin.top + innerHeight} y2={margin.top + innerHeight} stroke="rgba(0,0,0,0.3)" strokeWidth={1} />
 
         {/* Labels */}
         {yTicks.map((v, i) => (
@@ -116,7 +116,7 @@ function EquityCurveChart({
 
         {/* Chart Lines */}
         {showBuyHold && (
-          <polyline fill="none" stroke="rgba(255,255,255,0.4)" strokeDasharray="4 3" strokeWidth={1.5} points={buyHoldPoints} />
+          <polyline fill="none" stroke="#f59e0b" strokeDasharray="4 3" strokeWidth={1.5} points={buyHoldPoints} />
         )}
         <polyline fill="none" stroke="#60a5fa" strokeWidth={2} points={strategyPoints} />
       </svg>
@@ -181,7 +181,7 @@ export default function RightPanel() {
 
 
   return (
-   <aside className="right-panel">
+    <aside className="right-panel">
       <div className="pane-stack">
         <div className="pane">
           <div className="pane-header">

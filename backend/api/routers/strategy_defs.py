@@ -1,9 +1,10 @@
 # strategy_defs.py
 from api.routers.strategy_registry import register_strategy
-from api.models.strategies import EquityBondsModel, CrossAssetMomentumModel, RelativeValueStrategyModel, DeltaHedgingModel, CointegrationModel
+from api.models.strategies import *
 from strategies.cross_asset.equity_bonds import EquitiesBondsDynamic, CrossAssetMomentum, RelativeValueStrategy
 from strategies.derivatives.delta_hedging import DeltaHedging
 from strategies.mean_reversion.cointegration_based import CointegrationBased
+from strategies.mean_reversion.bollinger_bands import BollingerBands
 import pandas as pd
 
 @register_strategy("cross_asset/equity_bonds_dynamic", EquityBondsModel, asset_fields=["equity", "bond"])
@@ -42,6 +43,20 @@ def _build_delta_hedging(params: DeltaHedgingModel, price_data, enhancements):
         data=price_data[params.equity], enhancements=enhancements,
         asset=params.equity, strike=params.strike, days_to_expiry=params.days_to_expiry,
         r=params.r, assumed_vol=params.assumed_vol, cash_balance=params.cash_balance,
+    )
+
+@register_strategy("mean_reversion/bollinger_bands", BollingerBandsModel, asset_fields=["asset"])
+def _build_bollinger_bands(params: BollingerBandsModel, price_data, enhancements):
+    return BollingerBands(
+        data=price_data[params.asset], enhancements=enhancements,
+        asset=params.asset, window=params.window, num_std=params.num_std,
+    )
+
+@register_strategy("mean_reversion/bollinger_bands", BollingerBandsModel, asset_fields=["asset"])
+def _build_bollinger_bands(params: BollingerBandsModel, price_data, enhancements):
+    return BollingerBands(
+        data=price_data[params.asset], enhancements=enhancements,
+        asset=params.asset, window=params.window, num_std=params.num_std,
     )
 
 @register_strategy("mean_rev/cointegration", CointegrationModel, asset_fields=["asset1", "asset2"])

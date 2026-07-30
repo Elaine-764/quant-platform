@@ -54,12 +54,23 @@ class DeltaHedgingModel(BaseModel):
     assumed_vol: float = None
     cash_balance: float = 0.0
 
+class BollingerBandsModel(BaseModel):
+	asset: str
+	window: int = 20
+	num_std: float = 2.0
+
 class CointegrationModel(BaseModel):
 	asset1: str
 	asset2: str
 	window: int
 	threshold: float
 	beta: float
+
+class PairsTradingModel(BaseModel):
+	assets: List[str]
+	window: int = 60
+	threshold: float = 2.0
+	hedge_ratio: Optional[float] = None
 
 class OscillatorModel(BaseModel):
     asset: str
@@ -73,30 +84,17 @@ class MARequestModel(BaseModel):
 	long_window: int = 50
 
 
-class BollingerRequestModel(BaseModel):
-	asset: str
-	window: int = 20
-	num_std: float = 2.0
-
-
-class ZScoreRequestModel(BaseModel):
+class ZScoreReversionModel(BaseModel):
 	asset: str
 	window: int = 20
 	threshold: float = 2.0
 
 
-class PairsTradingRequest(BaseModel):
-	assets: List[str]
-	window: int = 60
-	threshold: float = 2.0
-	hedge_ratio: Optional[float] = None
-
-
-class EngleGrangerRequest(PairsTradingRequest):
+class EngleGrangerRequest(PairsTradingModel):
 	pass
 
 
-class JohansenRequest(PairsTradingRequest):
+class JohansenRequest(PairsTradingModel):
 	confidence_level: int = 95
 
 

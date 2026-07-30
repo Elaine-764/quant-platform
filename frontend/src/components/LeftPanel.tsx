@@ -84,11 +84,14 @@ function AssetParamField({
           <option value="" disabled>
             {loading ? 'Loading…' : 'Select…'}
           </option>
-          {options.map((ticker) => (
-            <option key={ticker} value={ticker}>
-              {ticker}
-            </option>
-          ))}
+          {options.map((label) => {
+            const ticker = label.split(' - ')[0]
+            return (
+              <option key={ticker} value={ticker}>
+                {label}
+              </option>
+            )
+          })}
         </select>
       )}
     </label>
@@ -224,8 +227,8 @@ let instanceCounter = 0
 const nextInstanceId = () => `inst_${++instanceCounter}`
 
 export default function LeftPanel() {
-    const { strategies, enhancements } = useRegistry()
-    const { loading, error: runError, setLoading, setError: setRunError, setResult } = useStrategyRun()
+  const { strategies, enhancements } = useRegistry()
+  const { loading, error: runError, setLoading, setError: setRunError, setResult } = useStrategyRun()
 
 
   const [selectedStrategyId, setSelectedStrategyId] = useState(strategies[0]?.id ?? '')

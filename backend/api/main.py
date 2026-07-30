@@ -4,7 +4,7 @@ import os
 
 from api.models.engine import HealthResponse, InstrumentListResponse, PricesResponse
 from api.strategy_utils import load_prices
-from api.routers import strategies, backtest, engine, assets
+from api.routers import strategies, engine, assets, backtest
 
 app = FastAPI(title="Quant Platform API")
 

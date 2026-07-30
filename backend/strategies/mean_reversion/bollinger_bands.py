@@ -1,4 +1,4 @@
-from base_strategy import Strategy
+from strategies.base_strategy import Strategy
 from core_logic.events.base_event import Event
 from factors.price_based import BollingerBands
 from core_logic.events.market_event import MarketEvent
@@ -9,8 +9,8 @@ class BollingerBandsReversion(Strategy):
 
     Buy when price touches lower band, sell when price touches upper band.
     """
-    def __init__(self, data, asset, window=20, num_std=2.0):
-        super().__init__(data)
+    def __init__(self, data, enhancements, asset, window=20, num_std=2.0):
+        super().__init__(data. enhancements)
         self.asset = asset
         self.window = window
         self.num_std = num_std

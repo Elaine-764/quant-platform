@@ -21,8 +21,8 @@ class ZScoreReversion(Strategy):
 
     Buy when price is below -threshold z-score, sell when above +threshold.
     """
-    def __init__(self, data, asset, window=20, threshold=2.0):
-        super().__init__(data)
+    def __init__(self, data, enhancements, asset, window=20, threshold=2.0):
+        super().__init__(data, enhancements)
         self.asset = asset
         self.window = window
         self.threshold = threshold
