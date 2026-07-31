@@ -1,2 +1,21 @@
-.topbar .btn { background: transparent; border: none; padding: 6px 8px; cursor: pointer }
-.topbar .controls { display:flex; gap:8px }
+.topbar .btn {
+    background: transparent;
+    border: 1px solid var(--border-light);
+    padding: 8px 12px;
+    cursor: pointer;
+    color: var(--text-primary);
+    border-radius: 6px;
+    transition: all 0.2s ease;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.topbar .btn:hover {
+    background: var(--bg-subtle);
+    border-color: var(--border-color);
+}
+
+.topbar .controls {
+    display: flex;
+    gap: 8px;
+}

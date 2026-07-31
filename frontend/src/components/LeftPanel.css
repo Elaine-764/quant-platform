@@ -8,10 +8,10 @@
 .left-panel h3 {
   font-size: 16px;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--text-primary);
   margin: 16px 0 12px 0;
   padding-bottom: 8px;
-  border-bottom: 2px solid #e5e7eb;
+  border-bottom: 2px solid var(--border-color);
 }
 
 .left-panel .enh-list {
@@ -30,8 +30,10 @@
   align-items: center;
   gap: 8px;
   padding: 8px;
-  background: #f9fafb;
+  background: var(--bg-subtle);
   border-radius: 6px;
+  border: 1px solid var(--border-light);
+  transition: background-color 0.2s ease;
 }
 
 .section {
@@ -77,10 +79,11 @@
   box-sizing: border-box;
   min-width: 0;
   padding: 10px 12px;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   font-size: 14px;
-  background: #ffffff;
+  background: var(--bg-primary);
+  color: var(--text-primary);
   transition: all 0.2s ease;
   font-family: inherit;
 }

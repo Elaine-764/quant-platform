@@ -2,7 +2,7 @@
   margin: 0 0 12px 0;
   font-size: 16px;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--text-primary);
 }
 
 .chart-controls {
@@ -18,6 +18,7 @@
   gap: 6px;
   font-size: 14px;
   cursor: pointer;
+  color: var(--text-primary);
 }
 
 .metrics-pane {
@@ -32,14 +33,15 @@
 .tests-list .test-item {
   padding: 10px 12px;
   border-radius: 8px;
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-light);
   transition: all 0.2s ease;
+  color: var(--text-primary);
 }
 
 .tests-list .test-item:hover {
-  background: #f3f4f6;
-  border-color: #d1d5db;
+  background: var(--bg-primary);
+  border-color: var(--border-color);
 }
 
 /* Replaces the old .top-half side-by-side layout with a stacked one */
@@ -48,11 +50,18 @@
   flex-direction: column;
   gap: 6px;
   width: 100%;
+  box-sizing: border-box;
+  min-height: 0;
 }
 
 .pane-stack>.pane {
   flex: 0 1 auto;
-  overflow: visible;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.pane-stack>.pane:first-child {
+  flex: 1 1 auto;
 }
 
 .chart-wrap {
@@ -67,16 +76,16 @@
   align-items: center;
   justify-content: center;
   gap: 10px;
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--shadow-medium);
   border-radius: 8px;
-  color: #fff;
+  color: var(--text-primary);
   font-size: 13px;
 }
 
 .spinner {
   width: 28px;
   height: 28px;
-  border: 3px solid rgba(255, 255, 255, 0.3);
+  border: 3px solid var(--border-color);
   border-top-color: #60a5fa;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
@@ -97,16 +106,19 @@
 
 .chart-axis-label {
   font-size: 9px;
-  fill: rgba(0, 0, 0, 0.55);
+  fill: var(--text-secondary);
+  opacity: 0.7;
 }
 
 .chart-axis-title {
   font-size: 10px;
-  fill: rgba(0, 0, 0, 0.55);
+  fill: var(--text-secondary);
+  opacity: 0.7;
 }
 
 .chart-svg text {
-  fill: rgba(0, 0, 0, 0.65);
+  fill: var(--text-primary);
+  opacity: 0.8;
 }
 
 .chart-placeholder {
@@ -115,8 +127,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+  background: linear-gradient(135deg, var(--bg-subtle) 0%, var(--bg-tertiary) 100%);
   border-radius: 12px;
+  border: 1px solid var(--border-light);
   padding: 24px;
   box-sizing: border-box;
 }
@@ -132,7 +145,7 @@
 .chart-placeholder-text {
   margin: 0;
   font-size: 14px;
-  color: #6b7280;
+  color: var(--text-secondary);
   font-weight: 500;
   letter-spacing: 0.3px;
 }
