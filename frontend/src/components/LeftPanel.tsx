@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import { useRegistry } from '../context/StrategyRegistry'
 import { useStrategyRun } from '../context/StrategyRunContext'
-import { useAssetOptions } from '../hooks/useAssetOptions'
+import { useAssetOptions, clearAssetCache } from '../hooks/useAssetOptions'
 import type { EnhancementMeta, ParamMeta } from '../types'
 import './LeftPanel.css'
 
@@ -263,6 +263,7 @@ export default function LeftPanel() {
   }, [strategy, paramValues])
 
   function handleStrategyChange(id: string) {
+    clearAssetCache() // Clear cached assets to fetch fresh data on strategy selection
     setSelectedStrategyId(id)
     const next = strategies.find((s) => s.id === id)
     setParamValues(next ? defaultsFor(next.params) : {})

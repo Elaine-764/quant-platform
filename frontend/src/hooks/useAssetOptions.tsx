@@ -1,23 +1,31 @@
 // hooks/useAssetOptions.ts
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { AssetClass } from '../types'
 
 const cache: Partial<Record<AssetClass, string[]>> = {}
+const fetching = new Set<string>()
+
+export function clearAssetCache() {
+  Object.keys(cache).forEach((key) => {
+    delete cache[key as AssetClass]
+  })
+}
 
 export function useAssetOptions(assetClass: AssetClass) {
   const [options, setOptions] = useState<string[]>(cache[assetClass] ?? [])
   const [loading, setLoading] = useState(!cache[assetClass])
   const [error, setError] = useState<string | null>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
-    if (cache[assetClass]) {
-      setOptions(cache[assetClass]!)
-      setLoading(false)
-      return
-    }
-    let cancelled = false
+    // Always fetch fresh data to ensure we reflect any changes
+    // and to provide visible feedback on strategy selection
+    fetching.add(assetClass)
+    abortControllerRef.current = new AbortController()
     setLoading(true)
-    fetch(`/api/assets?type=${assetClass}`)
+    setError(null)
+
+    fetch(`/api/assets?type=${assetClass}`, { signal: abortControllerRef.current.signal })
       .then(async (res) => {
         const contentType = res.headers.get('content-type') ?? ''
         if (!res.ok || !contentType.includes('application/json')) {
@@ -31,14 +39,22 @@ export function useAssetOptions(assetClass: AssetClass) {
         return res.json()
       })
       .then((data: { assets: string[] }) => {
-        if (cancelled) return
         cache[assetClass] = data.assets
         setOptions(data.assets)
+        setError(null)
       })
-      .catch((e) => !cancelled && setError(e.message))
-      .finally(() => !cancelled && setLoading(false))
+      .catch((e) => {
+        if (e.name !== 'AbortError') {
+          setError(e.message)
+        }
+      })
+      .finally(() => {
+        fetching.delete(assetClass)
+        setLoading(false)
+      })
+
     return () => {
-      cancelled = true
+      abortControllerRef.current?.abort()
     }
   }, [assetClass])
 

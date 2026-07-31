@@ -1,15 +1,27 @@
 .right-panel .pane h4 {
-  margin: 0 0 8px 0
+  margin: 0 0 12px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
 }
 
 .chart-controls {
   display: flex;
   gap: 12px;
-  margin-top: 8px
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+.chart-controls label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  cursor: pointer;
 }
 
 .metrics-pane {
-  padding: 12px
+  padding: 12px;
 }
 
 .test-actions {
@@ -18,16 +30,29 @@
 }
 
 .tests-list .test-item {
-  padding: 8px;
+  padding: 10px 12px;
   border-radius: 8px;
-  background: rgba(245, 247, 250, 0.6)
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  transition: all 0.2s ease;
+}
+
+.tests-list .test-item:hover {
+  background: #f3f4f6;
+  border-color: #d1d5db;
 }
 
 /* Replaces the old .top-half side-by-side layout with a stacked one */
 .pane-stack {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 6px;
+  width: 100%;
+}
+
+.pane-stack>.pane {
+  flex: 0 1 auto;
+  overflow: visible;
 }
 
 .chart-wrap {
@@ -86,7 +111,35 @@
 
 .chart-placeholder {
   width: 100%;
-  min-height: 220px;
+  min-height: 300px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+  border-radius: 12px;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+.chart-placeholder-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
+}
+
+.chart-placeholder-text {
+  margin: 0;
+  font-size: 14px;
+  color: #6b7280;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+}
+
+.chart-placeholder .chart-svg {
+  opacity: 0.3;
+  max-width: 400px;
 }
 
 .chart-svg {

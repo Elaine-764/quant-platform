@@ -3,21 +3,48 @@
   flex-direction: column;
   height: 100%;
   box-sizing: border-box;
-  overflow-x: hidden; /* prevent any child from pushing the panel wider */
 }
-.left-panel .enh-list { display:flex; flex-direction:column; gap:6px }
-.left-panel .panel-actions { display:flex; justify-content:space-between }
-.enh-item { display:flex; align-items:center; gap:8px }
+
+.left-panel h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 16px 0 12px 0;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.left-panel .enh-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px
+}
+
+.left-panel .panel-actions {
+  display: flex;
+  justify-content: space-between
+}
+
+.enh-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  background: #f9fafb;
+  border-radius: 6px;
+}
 
 .section {
-  min-width: 0; /* critical: without this, flex children can overflow their parent */
+  min-width: 0;
+  /* critical: without this, flex children can overflow their parent */
   width: 100%;
   box-sizing: border-box;
 }
 
 .full {
   width: 100%;
-  box-sizing: border-box; /* padding/border no longer add to the declared width */
+  box-sizing: border-box;
+  /* padding/border no longer add to the declared width */
 }
 
 .enh-block {
@@ -37,8 +64,8 @@
 .param-row {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-bottom: 10px;
+  gap: 6px;
+  margin-bottom: 12px;
   min-width: 0;
   width: 100%;
   box-sizing: border-box;
@@ -48,5 +75,19 @@
 .param-row select {
   width: 100%;
   box-sizing: border-box;
-  min-width: 0; /* lets inputs shrink below their default intrinsic width */
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  background: #ffffff;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.param-row input:focus,
+.param-row select:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }

@@ -34,14 +34,17 @@ function EquityCurveChart({
   if (history.length === 0) {
     return (
       <div className="chart-placeholder">
-        <svg viewBox={`0 0 ${width} ${height}`} className="chart-svg">
-          <polyline
-            fill="none"
-            stroke="#60a5fa"
-            strokeWidth={2}
-            points="0,150 50,120 100,110 150,90 200,70 250,80 300,60 350,40 400,55 450,30 500,20 550,10 600,5"
-          />
-        </svg>
+        <div className="chart-placeholder-content">
+          <svg viewBox={`0 0 ${width} ${height}`} className="chart-svg">
+            <polyline
+              fill="none"
+              stroke="#bfdbfe"
+              strokeWidth={2}
+              points="0,150 50,120 100,110 150,90 200,70 250,80 300,60 350,40 400,55 450,30 500,20 550,10 600,5"
+            />
+          </svg>
+          <p className="chart-placeholder-text">Run strategy to view equity curve</p>
+        </div>
       </div>
     )
   }
