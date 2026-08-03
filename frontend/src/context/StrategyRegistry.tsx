@@ -43,6 +43,7 @@ const defaultRegistry: Registry = {
         { name: 'asset2', type: 'asset', assetClass: 'any' },
         { name: 'window', type: 'number', default: 60 },
         { name: 'threshold', type: 'number', default: 1.5 },
+        { name: 'hedge_ratio', type: 'number', default: 0.0 },
       ],
       datasetCount: 2,
     },

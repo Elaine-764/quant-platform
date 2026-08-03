@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react'
-import { useStrategyRun, type EquityCurvePoint } from '../context/StrategyRunContext'
+import React, { useState, useMemo, useEffect } from 'react'
+import { useStrategyRun, type EquityCurvePoint, type BackendMetrics} from '../context/StrategyRunContext'
 import Modal from './Modal'
 import './RightPanel.css'
 
@@ -173,18 +173,61 @@ function formatCurrency(v: number | null) {
 }
 
 export default function RightPanel() {
-  const { loading, error, result } = useStrategyRun()
+  const { loading: strategyLoading, error: strategyError, result } = useStrategyRun()
   const history = result?.history ?? []
-  const metrics = computeMetrics(history)
+
+  // State elements to manage backend API metrics calculations
+  const [metrics, setMetrics] = useState<BackendMetrics | null>(null)
+  const [metricsLoading, setMetricsLoading] = useState(false)
+  const [metricsError, setMetricsError] = useState<string | null>(null)
 
   const [showBuyHold, setShowBuyHold] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const initialCash = history[0]?.portfolio_value ?? 100000 // rough proxy; see note below
   const buyHoldValues = useMemo(() => computeBuyAndHold(history, initialCash), [history, initialCash])
 
+  useEffect(() => {
+    if (history.length === 0) {
+      setMetrics(null)
+      return
+    }
+
+    async function fetchBackendMetrics() {
+      setMetricsLoading(true)
+      setMetricsError(null)
+      try {
+        const response = await fetch('/api/backtest/metrics', {
+          method: 'POST',
+          headers: {
+            'accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            strategy: (result as any)?.strategy_name ?? (result as any)?.strategyName ?? 'Default Strategy',
+            signal_count: (result as any)?.signal_count ?? (result as any)?.signalCount ?? history.length,
+            notes: null,
+            history: history, 
+          }),
+        })
+
+        if (!response.ok) {
+          throw new Error(`Server metric processing error status: ${response.status}`)
+        }
+
+        const data: BackendMetrics = await response.json()
+        setMetrics(data)
+      } catch (err: any) {
+        setMetricsError(err.message || 'Failed fetching metrics computation pipeline.')
+      } finally {
+        setMetricsLoading(false)
+      }
+    }
+
+    fetchBackendMetrics()
+  }, [history, result])
 
   return (
-    <aside className="right-panel">
+     <aside className="right-panel">
       <div className="pane-stack">
         <div className="pane">
           <div className="pane-header">
@@ -195,10 +238,10 @@ export default function RightPanel() {
           </div>
           <div className="chart-wrap">
             <EquityCurveChart history={history} buyHoldValues={buyHoldValues} showBuyHold={showBuyHold} />
-            {loading && (
+            {(strategyLoading || metricsLoading) && (
               <div className="chart-loading-overlay">
                 <div className="spinner" />
-                <span>Running strategy…</span>
+                <span>{strategyLoading ? 'Running strategy…' : 'Computing backend metrics…'}</span>
               </div>
             )}
           </div>
@@ -210,17 +253,38 @@ export default function RightPanel() {
               <input type="checkbox" /> Regime shading
             </label>
           </div>
-          {error && <div className="run-error">{error}</div>}
+          {(strategyError || metricsError) && (
+            <div className="run-error">{strategyError || metricsError}</div>
+          )}
         </div>
 
         <div className="pane metrics-pane">
           <h4>Metrics</h4>
-          <div className="metrics-list">
-            <div>Final portfolio value: {formatCurrency(metrics.finalValue)}</div>
-            <div>Total return: {formatPct(metrics.totalReturn)}</div>
-            <div>Sharpe: {formatNumber(metrics.sharpe)}</div>
-            <div>Max drawdown: {formatPct(metrics.maxDrawdown ? -metrics.maxDrawdown : null)}</div>
-          </div>
+          {metrics ? (
+            <div className="metrics-grid">
+              <div className="metrics-item"><strong>Final Value:</strong> {formatCurrency(metrics.final_portfolio_value)}</div>
+              <div className="metrics-item"><strong>Total Return:</strong> {formatPct(metrics.total_return)}</div>
+              <div className="metrics-item"><strong>Annual Return:</strong> {formatPct(metrics.annual_return)}</div>
+              <div className="metrics-item"><strong>Volatility (Ann):</strong> {formatPct(metrics.annual_volatility)}</div>
+              <div className="metrics-item"><strong>Sharpe Ratio:</strong> {formatNumber(metrics.sharpe)}</div>
+              <div className="metrics-item"><strong>Sortino Ratio:</strong> {formatNumber(metrics.sortino_ratio)}</div>
+              <div className="metrics-item"><strong>Max Drawdown:</strong> {formatPct(metrics.max_drawdown)}</div>
+              <div className="metrics-item"><strong>Information Ratio:</strong> {formatNumber(metrics.information_ratio)}</div>
+              
+              <div className="metrics-section-divider">
+                <h4 className="metrics-section-title">Consistency Parameters</h4>
+              </div>
+              
+              <div className="metrics-item"><strong>Profitable Months:</strong> {formatPct(metrics.consistency.pos_month_pct)}</div>
+              <div className="metrics-item"><strong>Profitable Years:</strong> {formatPct(metrics.consistency.pos_year_pct)}</div>
+              <div className="metrics-item"><strong>Median Month Ret:</strong> {formatPct(metrics.consistency.median_monthly_returns)}</div>
+              <div className="metrics-item"><strong>Std Dev Month Ret:</strong> {formatPct(metrics.consistency.std_monthly_returns)}</div>
+            </div>
+          ) : (
+            <div className="metrics-placeholder">
+              {metricsLoading ? 'Calculating backend parameters...' : 'No historical metrics generated.'}
+            </div>
+          )}
         </div>
       </div>
 

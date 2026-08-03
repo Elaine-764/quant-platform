@@ -5,6 +5,13 @@
   color: var(--text-primary);
 }
 
+.right-panel {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .chart-controls {
   display: flex;
   gap: 12px;
@@ -21,13 +28,70 @@
   color: var(--text-primary);
 }
 
-.metrics-pane {
-  padding: 12px;
+/* Container Panel Header formatting */
+.metrics-pane .metrics-main-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: #111827; /* Dark Slate Gray neutral color accent */
 }
+
+/* Secondary Section Subheading formatting */
+.metrics-pane .metrics-section-title {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin: 0;
+  color: #374151;
+}
+
+/* Layout Grid Structure mappings */
+.metrics-pane .metrics-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 16px;
+}
+
+/* Base line-items sizing */
+.metrics-pane .metrics-item {
+  font-size: 0.925rem;
+  line-height: 1.4;
+  color: #4b5563;
+}
+
+/* Subheading Divider Break rules */
+.metrics-pane .metrics-section-divider {
+  grid-column: 1 / -1;
+  border-top: 1px solid rgba(0, 0, 0, 0.12);
+  padding-top: 12px;
+  margin-top: 8px;
+}
+
+/* Loading/Empty State formatting placeholder definitions */
+.metrics-pane .metrics-placeholder {
+  opacity: 0.65;
+  font-size: 0.9rem;
+  font-style: italic;
+  padding: 16px 0;
+}
+
 
 .test-actions {
   display: flex;
   gap: 8px
+}
+
+/* Bottom half panes - also responsive grid layout */
+.bottom-half {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 6px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.bottom-half > .pane {
+  overflow: hidden;
+  min-height: 0;
 }
 
 .tests-list .test-item {
@@ -44,24 +108,27 @@
   border-color: var(--border-color);
 }
 
-/* Replaces the old .top-half side-by-side layout with a stacked one */
+/* Responsive grid layout with adaptive widths based on content height */
 .pane-stack {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 6px;
   width: 100%;
   box-sizing: border-box;
   min-height: 0;
+  auto-flow: dense;
 }
 
-.pane-stack>.pane {
-  flex: 0 1 auto;
+.pane-stack > .pane {
   overflow: hidden;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
-.pane-stack>.pane:first-child {
-  flex: 1 1 auto;
+.pane-stack > .pane:first-child {
+  grid-column: span 1;
+  min-height: 0;
 }
 
 .chart-wrap {

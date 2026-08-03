@@ -44,3 +44,23 @@ export function useStrategyRun() {
   if (!ctx) throw new Error('useStrategyRun must be used within a StrategyRunProvider')
   return ctx
 }
+
+export interface BackendMetrics {
+  final_portfolio_value: number
+  total_return: number
+  annual_return: number
+  sharpe: number | null
+  max_drawdown: number | null
+  volatility: number | null
+  annual_volatility: number
+  information_ratio: number
+  sortino_ratio: number
+  consistency: {
+    pos_month_pct: number
+    pos_year_pct: number
+    median_monthly_returns: number
+    median_yearly_returns: number
+    std_monthly_returns: number
+    std_yearly_returns: number
+  }
+}
