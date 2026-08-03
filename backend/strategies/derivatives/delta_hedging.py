@@ -1,11 +1,14 @@
 import numpy as np
 import pandas as pd
 import scipy.stats as si
-from ..base_strategy import Strategy
-
+from strategies.base_strategy import Strategy
+from core_logic.events.base_event import Event
+from core_logic.events.market_event import MarketEvent
+from core_logic.events.signal_event import SignalEvent
+import pandas as pd
 
 class DeltaHedging(Strategy):
-    def __init__(self, data, enhancements, asset: str, strike: float, days_to_expiry: int,
+    def __init__(self, data: pd.DataFrame, enhancements, asset: str, strike: float, days_to_expiry: int,
                  r: float = 0.04, assumed_vol: float = None,
                  cash_balance: float = 0.0):
         """
@@ -19,6 +22,7 @@ class DeltaHedging(Strategy):
         assumed_vol     : implied vol to use; if None, calibrated from data
         cash_balance    : starting cash (premium collected is added on Day 0)
         """
+        data = data.rename(columns={"Close": f"{asset}_Close"})
         super().__init__(data, enhancements)
         self.asset           = asset
         self.strike          = strike
@@ -26,7 +30,6 @@ class DeltaHedging(Strategy):
         self.r               = r
         self.assumed_vol     = assumed_vol      # None → calibrated in compute_factors
         self.cash_balance    = cash_balance
-        self.shares_held     = 0.0
 
         # populated by compute_factors / on_event
         self.calibrated_vol  = None
@@ -52,6 +55,7 @@ class DeltaHedging(Strategy):
                 "Rho_Call":   0.0, "Rho_Put":   0.0,
             }
 
+        # print(f'K = {K}, S = {S}, r = {r}, q = {q}, sigma = {sigma}, T = {T}')
         d1 = (np.log(S / K) + (r - q + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
         d2 = d1 - sigma * np.sqrt(T)
 
@@ -131,84 +135,75 @@ class DeltaHedging(Strategy):
     # compute_factors  (called once before the event loop)
     # ------------------------------------------------------------------
     def compute_factors(self):
-        """
-        Calibrates volatility from the full price history, attaches the smile
-        DataFrame, and stamps both onto self.data so the engine can pass them
-        through history if desired.
-        """
-        close = self.data["close"]
+        close = self.data[f"{self.asset}_Close"]
 
         self.calibrated_vol = self.calculate_historical_volatility(close)
-
-        # Use caller-supplied vol if provided, else fall back to calibrated
         vol = self.assumed_vol if self.assumed_vol is not None else self.calibrated_vol
 
-        # Pre-compute BSM columns for every bar (useful for factor inspection)
-        total_bars = len(self.data)
         dt = 1 / 252
-
         records = []
-        for i, price in enumerate(close):
-            T_remaining = max((total_bars - i) * dt, 0)
-            greeks = self.bsm(S=price, K=self.strike, T=T_remaining,
-                              r=self.r, sigma=vol)
-            records.append(greeks)
+
+        for i in range(len(close)):
+            price = close.iloc[i]
+            # bound by days_to_expiry, not total_bars
+            T_remaining = max((self.days_to_expiry - i) * dt, 0)
+
+            if price is None or (isinstance(price, float) and np.isnan(price)):
+                records.append({col: np.nan for col in [
+                    "Call_Price", "Put_Price", "Delta_Call", "Delta_Put",
+                    "Gamma", "Theta_Call", "Theta_Put", "Vega", "Rho_Call", "Rho_Put"
+                ]})
+            else:
+                records.append(self.bsm(S=price, K=self.strike,
+                                        T=T_remaining, r=self.r, sigma=vol))
 
         greeks_df = pd.DataFrame(records, index=self.data.index)
-        self.data = pd.concat([self.data, greeks_df], axis=1)
 
-        # Smile snapshot at current spot
+        collisions = set(greeks_df.columns) & set(self.data.columns)
+        assert not collisions, f"Column collision between Greeks and OHLCV: {collisions}"
+
+        self.data = pd.concat([self.data, greeks_df], axis=1)
         self.smile_df = self.generate_synthetic_smile(
             current_stock_price=close.iloc[0],
             base_vol=vol
         )
 
-    # ------------------------------------------------------------------
-    # on_event  (called by the engine on every bar)
-    # ------------------------------------------------------------------
-    def on_event(self, event: dict, positions=None):
-        """
-        Dynamic delta-hedging rebalance on each new price bar.
+        # store the index→bar mapping so on_event can look up integer position
+        self._timestamp_to_bar = {ts: i for i, ts in enumerate(self.data.index)}
 
-        event keys expected from BacktestEngine:
-            timestamp, bar_index, price (close), positions
-        """
-        t     = event["bar_index"]
-        price = event["price"]
-        total_bars = len(self.data)
-        dt = 1 / 252
 
-        vol = self.assumed_vol if self.assumed_vol is not None else self.calibrated_vol
+    def on_event(self, event: Event, positions: dict[str, float] = None) -> SignalEvent | None:
+        if event.type != 'MARKET':
+            raise ValueError("Incorrect event type.")
 
-        if t == 0:
-            # --- Day 0: sell the call, collect premium, establish initial hedge ---
-            T0 = total_bars * dt
-            greeks = self.bsm(S=price, K=self.strike, T=T0, r=self.r, sigma=vol)
+        timestamp = event.timestamp
+        price     = event.prices.get(self.asset)
+        dt        = 1 / 252
+        vol       = self.assumed_vol if self.assumed_vol is not None else self.calibrated_vol
 
-            self.cash_balance += greeks["Call_Price"]       # collect premium
-            self.shares_held   = greeks["Delta_Call"]
-            self.cash_balance -= self.shares_held * price   # buy initial hedge
+        if price is None or (isinstance(price, float) and np.isnan(price)):
+            # print(f"[DeltaHedging] WARNING: no price for '{self.asset}' at {timestamp}, skipping.")
+            return [SignalEvent(timestamp=timestamp, asset=self.asset, signal=0)]
 
+        bar_index = self._timestamp_to_bar.get(timestamp)
+        if bar_index is None:
+            # print(f"[DeltaHedging] WARNING: timestamp {timestamp} not in data index, skipping.")
+            return [SignalEvent(timestamp=timestamp, asset=self.asset, signal=0)]
+
+        if bar_index >= self.days_to_expiry:
+            return [SignalEvent(timestamp=timestamp, asset=self.asset, signal=0)]
+
+        T_remaining      = max((self.days_to_expiry - bar_index) * dt, 0)
+        greeks           = self.bsm(S=price, K=self.strike, T=T_remaining, r=self.r, sigma=vol)
+        target_delta     = greeks["Delta_Call"]
+        current_position = positions.get(self.asset, 0.0) if positions else 0.0
+        shares_to_trade  = target_delta - current_position
+
+        if shares_to_trade > 0:
+            signal = 1
+        elif shares_to_trade < 0:
+            signal = -1
         else:
-            # --- Day t: rebalance to new delta ---
-            T_remaining = max((total_bars - t) * dt, 0)
-            greeks = self.bsm(S=price, K=self.strike,
-                              T=T_remaining, r=self.r, sigma=vol)
+            signal = 0
 
-            target_shares  = greeks["Delta_Call"]
-            shares_to_trade = target_shares - self.shares_held
-
-            self.cash_balance -= shares_to_trade * price    # buy/sell difference
-            self.shares_held   = target_shares
-            self.cash_balance *= np.exp(self.r * dt)        # risk-free growth
-
-        # keep strategy-local state only; the engine owns portfolio recording
-        self.positions_state = {
-            "shares_held": self.shares_held,
-            "cash_balance": self.cash_balance,
-            "hedge_pnl": (
-                self.cash_balance
-                + self.shares_held * price
-                - max(price - self.strike, 0)
-            ),
-        }
+        return [SignalEvent(timestamp=timestamp, asset=self.asset, signal=signal)]

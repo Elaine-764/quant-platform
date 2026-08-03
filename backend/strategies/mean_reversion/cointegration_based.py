@@ -46,8 +46,9 @@ class CointegrationBased(Strategy):
 
     def compute_factors(self):
         """Pre-compute cointegrated spread and its statistics."""
-        price1 = self.data[f'{self.asset1}_Close'] if f'{self.asset1}_Close' in self.data else self.data['Close']
-        price2 = self.data[f'{self.asset2}_Close'] if f'{self.asset2}_Close' in self.data else self.data['Close']
+        print(self.data.columns)
+        price1 = self.data[f'{self.asset1}_Close']
+        price2 = self.data[f'{self.asset2}_Close']
 
         # Calculate beta (cointegration factor) using rolling OLS if not provided
         if self.beta is None:
