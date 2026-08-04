@@ -25,16 +25,22 @@ class PricesResponse(BaseModel):
 
 
 class MetricsRequest(BaseModel):
+    strategy: str
+    signal_count: int
+    notes: Any
     history: List[Dict[str, Any]]
-
 
 class MetricsResponse(BaseModel):
     final_portfolio_value: float
     total_return: float
+    annual_return: float
     sharpe: Optional[float] = None
     max_drawdown: Optional[float] = None
     volatility: Optional[float] = None
-
+    annual_volatility: float
+    information_ratio: float
+    sortino_ratio: float
+    consistency: Dict[str, Any]
 
 class HealthResponse(BaseModel):
     status: str = "ok"
@@ -48,5 +54,11 @@ class TransactionCosts(BaseModel):
 class PortfolioModel(BaseModel):
     initial_cash: float
     transaction_costs: TransactionCosts
+
+
+class GenericStrategyRequest(BaseModel):
+    params: Dict[str, Any]
+    enhancements: EnhancementsModel
+    portfolio: PortfolioModel
 
 

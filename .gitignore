@@ -9,3 +9,4 @@ ENHANCEMENT_USAGE.md
 **/*delete*
 **/*notes*
 **/.venv/
+**/sample_runs/

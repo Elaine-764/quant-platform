@@ -25,11 +25,8 @@ def _build_cross_asset_momentum(params, price_data, enhancements):
         lookback=params.lookback, rebalance_freq=params.rebalance_freq,
     )
 
-@register_strategy("cross_asset/relative_value", RelativeValueStrategyModel, asset_fields=["asset1, asset2"])
+@register_strategy("cross_asset/relative_value", RelativeValueStrategyModel, asset_fields=["asset1", "asset2"])
 def _build_relative_value(params: RelativeValueStrategyModel, price_data, enhancements):
-    asset_dfs = []
-    for a in params.assets:
-        asset_dfs.append(price_data[a])
     return RelativeValueStrategy(
         data=None, enhancements=enhancements,
         asset1=params.asset1, asset2=params.asset2,
@@ -62,6 +59,7 @@ def _build_bollinger_bands(params: BollingerBandsModel, price_data, enhancements
 @register_strategy("mean_rev/cointegration", CointegrationModel, asset_fields=["asset1", "asset2"])
 def _build_cointegration(params: CointegrationModel, price_data, enhancements):
     return CointegrationBased(
+        data=None,enhancements=enhancements,
         data1=price_data[params.asset1], data2=price_data[params.asset2],
         asset1=params.asset1, asset2=params.asset2,
         window=params.window, threshold=params.threshold, beta=params.beta,

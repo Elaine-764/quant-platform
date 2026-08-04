@@ -6,20 +6,14 @@ from pathlib import Path
 
 
 from api.models.enhancements import EnhancementsModel
-from api.models.engine import PortfolioModel
+from api.models.engine import GenericStrategyRequest
 from api.models.strategies import StrategyResponse
-from api.strategy_utils import load_prices_df, build_portfolio, build_enhancements
+from api.strategy_utils import load_prices_df, build_portfolio, build_enhancements, DATA_DIR
 from core_logic.engine.engine import BacktestEngine
 from api.routers.strategy_registry import REGISTRY
 import api.routers.strategy_defs  # noqa: F401  -- ensures registrations run
 
 router = APIRouter()
-DATA_DIR = Path(__file__).resolve().parents[2] / "data" / "processed"
-
-class GenericStrategyRequest(BaseModel):
-    params: Dict[str, Any]
-    enhancements: EnhancementsModel
-    portfolio: PortfolioModel
 
 @router.post("/strategy/{strategy_name:path}", response_model=StrategyResponse, tags=["strategies"])
 def run_strategy(strategy_name: str, request: GenericStrategyRequest):

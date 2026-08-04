@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
+from fastapi.encoders import jsonable_encoder
 from typing import List, Dict, Any
 import os
 import csv
@@ -14,14 +15,15 @@ from strategies.enhancements.position_resizing import KellyCriterion as Strategy
 from strategies.cross_asset.equity_bonds import EquitiesBondsDynamic
 from core_logic.engine.engine import BacktestEngine
 from core_logic.portfolio.portfolio import Portfolio
-from api.strategy_utils import load_prices_df, build_filters, build_position_sizers, build_portfolio
+from api.strategy_utils import load_prices_df, build_filters, build_position_sizers, build_portfolio, DATA_DIR
+from api.models.eval import NoiseOHLCRequest, BootstrapRequest, NoiseResponse, BootstrapResponse
 
 router = APIRouter() 
 
 @router.post("/run-backtest", response_model=None)
 def run_backtest(req: Dict[str, Any]):
 	# parse request body into Pydantic model inside the function to avoid import-time validation issues
-	from ..models.enhancements import BacktestRequest as _BacktestRequest
+	from api.models.enhancements import BacktestRequest as _BacktestRequest
 	try:
 		req = _BacktestRequest.parse_obj(req)
 	except Exception as e:
@@ -94,105 +96,126 @@ def run_backtest(req: Dict[str, Any]):
 
 @router.post("/backtest/metrics", response_model=None, tags=["backtest"])
 def compute_metrics(body: Dict[str, Any]):
-	from ..models.enhancements import MetricsResponse, MetricsRequest
+    from api.models.engine import MetricsResponse, MetricsRequest
+    try:
+        req = MetricsRequest.model_validate(body)
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+    # Use the project's MetricsCalculator 
+    from evaluation.metrics_calculator import MetricsCalculator
+    mc = MetricsCalculator(req.history)
+    out = mc.all()
+    
+    # Use jsonable_encoder to safely format NaN/inf values into nulls
+    return JSONResponse(content=jsonable_encoder(out))
+
+
+# ------------------------------------------------------------------
+# Shared helper — mirrors run_strategy but returns (engine, strat, df)
+# instead of running immediately, so MC can wrap the engine
+# ------------------------------------------------------------------
+def _build_engine_from_strategy_request(strategy_request):
+	"""
+	Resolves registry → parses params → loads prices → builds strategy + engine.
+	Extracted so both the normal strategy endpoint and MC endpoints share it.
+	"""
+	from api.routers.strategy_registry import REGISTRY
+	from api.strategy_utils import load_prices_df, DATA_DIR, build_enhancements, build_portfolio
+	from pydantic import ValidationError
+	from core_logic.engine.engine import BacktestEngine
+
+	spec = REGISTRY.get(strategy_request.strategy_name)
+	if spec is None:
+		raise HTTPException(404, f"Unknown strategy '{strategy_request.strategy_name}'.")
+
 	try:
-		req = MetricsRequest.parse_obj(body)
-	except Exception as e:
-		raise HTTPException(status_code=422, detail=str(e))
+		parsed = spec.model(**strategy_request.params)
+	except ValidationError as e:
+		raise HTTPException(422, e.errors())
 
-	# Use the project's MetricsCalculator if available, otherwise compute basic metrics here
-	try:
-		from evaluation.metrics_calculator import MetricsCalculator
-		mc = MetricsCalculator(req.history)
-		out = mc.all()
-		return JSONResponse(content=out)
-	except Exception:
-		# fallback simple calculations using pandas
-		import pandas as pd
-		df = pd.DataFrame(req.history).set_index("timestamp").sort_index()
-		pv = df["portfolio_value"]
-		total_return = (pv.iloc[-1] - pv.iloc[0]) / pv.iloc[0]
-		returns = pv.pct_change().dropna()
-		sharpe = None if returns.std() == 0 else float((returns.mean() / returns.std()) * (252 ** 0.5))
-		rolling_max = pv.cummax()
-		drawdown = (pv - rolling_max) / rolling_max
-		max_dd = float(drawdown.min())
-		volatility = float(returns.std() * (252 ** 0.5))
-		out = {
-			"final_portfolio_value": float(pv.iloc[-1]),
-			"total_return": float(total_return),
-			"sharpe": sharpe,
-			"max_drawdown": max_dd,
-			"volatility": volatility,
-		}
-		return JSONResponse(content=out)
+	tickers = {getattr(parsed, f) for f in spec.asset_fields}
+	for f in spec.multi_asset_fields:
+		tickers.update(getattr(parsed, f))
+	price_data = {t: load_prices_df(DATA_DIR, t) for t in tickers}
+
+	enhcmts = build_enhancements(enhancements=strategy_request.enhancements)
+	strat   = spec.factory(parsed, price_data, enhcmts)
+	port    = build_portfolio(portfolio=strategy_request.portfolio)
+	engine  = BacktestEngine(data=strat.data, strategy=strat, portfolio=port)
+
+	return engine, strat
 
 
-@router.post("/backtest/montecarlo/noise_ohlc", response_model=StrategyResponse, tags=["backtest"])
+# ------------------------------------------------------------------
+# POST /backtest/montecarlo/noise_ohlc
+# ------------------------------------------------------------------
+@router.post("/backtest/montecarlo/noise_ohlc", response_model=NoiseResponse, tags=["backtest"])
 def montecarlo_noise_ohlc(body: Dict[str, Any]):
-	from ..models.enhancements import NoiseOHLCRequest
-	try:
-		req = NoiseOHLCRequest.parse_obj(body)
-	except Exception as e:
-		raise HTTPException(status_code=422, detail=str(e))
+    from evaluation.noise_injection import NoiseInjectionOHLC
 
-	try:
-		df = load_prices_df(req.instrument)
-	except FileNotFoundError:
-		raise HTTPException(status_code=404, detail="Instrument not found")
+    try:
+        req = NoiseOHLCRequest.parse_obj(body)
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=str(e))
 
-	try:
-		from evaluation.noise_injection import NoiseInjectionOHLC
-		from core_logic.engine.engine import BacktestEngine
-		from core_logic.portfolio.portfolio import Portfolio
+    try:
+        engine, strat = _build_engine_from_strategy_request(req.strategy)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Strategy build error: {e}")
 
-		dummy_portfolio = Portfolio(initial_cash=req.start_cash)
-		engine = BacktestEngine(df, None, dummy_portfolio)
-		mc = NoiseInjectionOHLC(df, engine,
-								epsilon=req.epsilon,
-								confidence=req.confidence,
-								k=req.k,
-								noise_factor=req.noise_factor,
-								vol_window=req.vol_window,
-								metric=req.metric)
-		res = mc.run()
-		return JSONResponse(content=res)
-	except Exception as e:
-		raise HTTPException(status_code=500, detail=f"Monte Carlo error: {e}")
+    try:
+        mc  = NoiseInjectionOHLC(
+            data            = strat.data,
+            backtest_engine = engine,
+            epsilon         = req.epsilon,
+            confidence      = req.confidence,
+            k               = req.k,
+            noise_factor    = req.noise_factor,
+            vol_window      = req.vol_window,
+            metric          = req.metric,
+        )
+        res = mc.run()
+        return JSONResponse(content=res)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Monte Carlo (OHLC noise) error: {e}")
 
-@router.post("/montecarlo/bootstrap", response_model=None, tags=["backtest"])
+
+# ------------------------------------------------------------------
+# POST /backtest/montecarlo/bootstrap
+# ------------------------------------------------------------------
+@router.post("/backtest/montecarlo/bootstrap", response_model=BootstrapResponse, tags=["backtest"])
 def montecarlo_bootstrap(body: Dict[str, Any]):
-	from ..models.enhancements import BootstrapRequest
-	try:
-		req = BootstrapRequest.parse_obj(body)
-	except Exception as e:
-		raise HTTPException(status_code=422, detail=str(e))
+    from evaluation.bootstrap_confidence_interval import BootstrappedConfidenceIntervals
 
-	# load data as DataFrame for evaluation classes
-	try:
-		df = load_prices_df(req.instrument)
-	except FileNotFoundError:
-		raise HTTPException(status_code=404, detail="Instrument not found")
+    try:
+        req = BootstrapRequest.parse_obj(body)
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=str(e))
 
-	# attempt to initialize BacktestEngine
-	try:
-		from evaluation.bootstrap_confidence_interval import BootstrappedConfidenceIntervals
-		from core_logic.engine.engine import BacktestEngine
-		from core_logic.portfolio.portfolio import Portfolio
-		# try to create a backtest engine; keep it simple by passing DataFrame and a minimal portfolio
-		dummy_portfolio = Portfolio(initial_cash=req.start_cash)
-		# BacktestEngine may accept different signatures; attempt to instantiate
-		engine = BacktestEngine(df, None, dummy_portfolio)
-		mc = BootstrappedConfidenceIntervals(df, engine,
-											epsilon=req.epsilon,
-											confidence=req.confidence,
-											k=req.k,
-											n_bootstrap=req.n_bootstrap,
-											metric=req.metric,
-											null_value=req.null_value,
-											min_threshold=req.min_threshold,
-											avg_block_length=req.avg_block_length)
-		res = mc.run()
-		return JSONResponse(content=res)
-	except Exception as e:
-		raise HTTPException(status_code=500, detail=f"Monte Carlo error: {e}")
+    try:
+        engine, strat = _build_engine_from_strategy_request(req.strategy)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Strategy build error: {e}")
+
+    try:
+        mc  = BootstrappedConfidenceIntervals(
+            data             = strat.data,
+            backtest_engine  = engine,
+            epsilon          = req.epsilon,
+            confidence       = req.confidence,
+            k                = req.k,
+            n_bootstrap      = req.n_bootstrap,
+            metric           = req.metric,
+            null_value       = req.null_value,
+            min_threshold    = req.min_threshold,
+            avg_block_length = req.avg_block_length,
+        )
+        res = mc.run()
+        return JSONResponse(content=res)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Monte Carlo (bootstrap) error: {e}")

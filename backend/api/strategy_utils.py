@@ -4,16 +4,19 @@ from pathlib import Path
 import pandas as pd
 import csv
 
-from .models.enhancements import FilterUnion
-from .models.enhancements import MomentumFilter as MmtmFilter
-from .models.enhancements import KellyCriterion as ModelKelly
-from .models.enhancements import FractionalSizer as FrcSizer
-from .models.enhancements import PositionSizerBase, VolFilter, EnhancementsModel
-from .models.engine import PortfolioModel
+from api.models.enhancements import FilterUnion
+from api.models.enhancements import MomentumFilter as MmtmFilter
+from api.models.enhancements import KellyCriterion as ModelKelly
+from api.models.enhancements import FractionalSizer as FrcSizer
+from api.models.enhancements import PositionSizerBase, VolFilter, EnhancementsModel
+from api.models.engine import PortfolioModel
 
 from strategies.enhancements.filters import VolatilityFilter, MomentumFilter
 from strategies.enhancements.position_resizing import KellyCriterion, FractionalSizer
 from core_logic.portfolio.portfolio import Portfolio
+
+DATA_DIR = Path(__file__).resolve().parents[2] / "data" / "processed"
+
 
 def load_prices(data_dir: Path, symbol: str, max_rows: int = 10000) -> List[Dict[str, Any]]:
 	path = data_dir / f"{symbol}.csv"
