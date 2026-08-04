@@ -17,7 +17,11 @@ tickers = [
     # Currency
     "UUP",
     # Volatility
-    "^VIX"
+    "^VIX",
+    # S&P 500
+    "^GSPC",
+    # Cboe 10-year treasury note yield index
+    "^TNX",
 ]
 data = yf.download(tickers, period="10y", interval="1d", auto_adjust=True, group_by="column")
 

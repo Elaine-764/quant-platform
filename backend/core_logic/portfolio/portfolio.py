@@ -24,6 +24,7 @@ class Portfolio:
         return fee
 
     def update(self, signal: FullSignalEvent, prices):
+        # print(f'prices = {prices}')
         sig = signal.signal
         asset = signal.asset
         quantity = signal.size
