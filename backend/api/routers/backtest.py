@@ -7,7 +7,7 @@ import csv
 from pathlib import Path
 import pandas as pd
 
-from api.models.engine import HealthResponse, InstrumentListResponse, PricesResponse, BacktestRequest, BacktestResult, TransactionCosts
+from api.models.engine import HealthResponse, InstrumentListResponse, PricesResponse, BacktestRequest, BacktestResult, TransactionCosts, GenericStrategyRequest
 from api.models.strategies import EquityBondsModel, StrategyRequest, StrategyResponse
 # strategy implementations (rename imports to avoid name collisions with Pydantic models)
 from strategies.enhancements.filters import Filter as StrategyFilter, VolatilityFilter, MomentumFilter as StrategyMomentumFilter
@@ -23,7 +23,7 @@ router = APIRouter()
 @router.post("/run-backtest", response_model=None)
 def run_backtest(req: Dict[str, Any]):
 	# parse request body into Pydantic model inside the function to avoid import-time validation issues
-	from api.models.enhancements import BacktestRequest as _BacktestRequest
+	from api.models.eval import BacktestRequest as _BacktestRequest ## TODO: this doesn't exist
 	try:
 		req = _BacktestRequest.parse_obj(req)
 	except Exception as e:
@@ -115,7 +115,7 @@ def compute_metrics(body: Dict[str, Any]):
 # Shared helper — mirrors run_strategy but returns (engine, strat, df)
 # instead of running immediately, so MC can wrap the engine
 # ------------------------------------------------------------------
-def _build_engine_from_strategy_request(strategy_request):
+def _build_engine_from_strategy_request(strategy_name: str, strategy_request: GenericStrategyRequest):
 	"""
 	Resolves registry → parses params → loads prices → builds strategy + engine.
 	Extracted so both the normal strategy endpoint and MC endpoints share it.
@@ -125,10 +125,10 @@ def _build_engine_from_strategy_request(strategy_request):
 	from pydantic import ValidationError
 	from core_logic.engine.engine import BacktestEngine
 
-	spec = REGISTRY.get(strategy_request.strategy_name)
+	spec = REGISTRY.get(strategy_name)
 	if spec is None:
-		raise HTTPException(404, f"Unknown strategy '{strategy_request.strategy_name}'.")
-
+		raise HTTPException(404, f"Unknown strategy '{strategy_name}'")
+	parsed = spec.model(**strategy_request.params)
 	try:
 		parsed = spec.model(**strategy_request.params)
 	except ValidationError as e:
@@ -160,7 +160,7 @@ def montecarlo_noise_ohlc(body: Dict[str, Any]):
         raise HTTPException(status_code=422, detail=str(e))
 
     try:
-        engine, strat = _build_engine_from_strategy_request(req.strategy)
+        engine, strat = _build_engine_from_strategy_request(req.strategy_name, req.strategy)
     except HTTPException:
         raise
     except Exception as e:
@@ -196,7 +196,7 @@ def montecarlo_bootstrap(body: Dict[str, Any]):
         raise HTTPException(status_code=422, detail=str(e))
 
     try:
-        engine, strat = _build_engine_from_strategy_request(req.strategy)
+        engine, strat = _build_engine_from_strategy_request(req.strategy_name, req.strategy)
     except HTTPException:
         raise
     except Exception as e:

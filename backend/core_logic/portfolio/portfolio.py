@@ -3,6 +3,7 @@ from strategies.enhancements.signal_types import SignalType
 from core_logic.events.order_event import OrderEvent
 class Portfolio:
     def __init__(self, initial_cash=100000, transaction_costs=None):
+        self.starting_cash = initial_cash
         self.cash = initial_cash
         self.positions = {}  # asset -> quantity
         self.trades = []

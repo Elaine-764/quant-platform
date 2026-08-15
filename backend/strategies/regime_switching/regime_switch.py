@@ -43,14 +43,14 @@ class RegimeSwitching(Strategy):
 
         self.data['returns'] = np.log(self.data['Close'] / self.data['Close'].shift(1))
         # Pre-compute volatility for regime detection
-        self.data['volatility'] = self.data['Returns'].rolling(window=20).std()
+        self.data['volatility'] = self.data['returns'].rolling(window=20).std()
         self.data.dropna(inplace=True)
 
         self.features = self.data[['returns', 'volatility']].values
-        self.model = hmm.GaussianHMM(n_components=2, covariance_type="full", n_iter=100, random_state=42)
-        self.model.fit(self.features)
+        self.hmm_model = hmm.GaussianHMM(n_components=2, covariance_type="full", n_iter=100, random_state=42)
+        self.hmm_model.fit(self.features)
 
-        self.data['regime'] = self.model.predict(self.features)
+        self.data['regime'] = self.hmm_model.predict(self.features)
 
         # Determine which regime is safer by checking average volatility
         state_0_vol = self.data[self.data['regime'] == 0]['volatility'].mean()
@@ -58,19 +58,6 @@ class RegimeSwitching(Strategy):
 
         # Identify the low-volatility (Bull) state
         self.bull_state = 0 if state_0_vol < state_1_vol else 1
-
-
-    def get_current_regime(self, t):
-        """Determine current volatility regime."""
-        if t < self.vol_window:
-            return 'neutral'
-
-        vol = self.data['volatility'].iloc[t]
-
-        if vol > self.vol_threshold:
-            return 'high_vol'
-        else:
-            return 'low_vol'
 
     def on_event(self, event: Event, positions=None):
         t = event.timestamp

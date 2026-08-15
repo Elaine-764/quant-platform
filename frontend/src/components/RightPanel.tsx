@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react'
-import { useStrategyRun, type EquityCurvePoint, type BackendMetrics} from '../context/StrategyRunContext'
+import { useStrategyRun, type EquityCurvePoint, type BackendMetrics, type LastStrategyRequest} from '../context/StrategyRunContext'
 import Modal from './Modal'
 import './RightPanel.css'
+
 
 function computeBuyAndHold(history: EquityCurvePoint[], initialCash: number): number[] {
   if (history.length === 0) return []
@@ -127,39 +128,6 @@ function EquityCurveChart({
   )
 }
 
-function computeMetrics(history: { portfolio_value: number }[]) {
-  if (history.length === 0) {
-    return { finalValue: null, totalReturn: null, sharpe: null, maxDrawdown: null }
-  }
-
-  const values = history.map((h) => h.portfolio_value)
-  const initial = values[0]
-  const final = values[values.length - 1]
-  const totalReturn = initial !== 0 ? (final - initial) / initial : null
-
-  const returns: number[] = []
-  for (let i = 1; i < values.length; i++) {
-    if (values[i - 1] !== 0) returns.push((values[i] - values[i - 1]) / values[i - 1])
-  }
-  let sharpe: number | null = null
-  if (returns.length > 1) {
-    const mean = returns.reduce((a, b) => a + b, 0) / returns.length
-    const variance = returns.reduce((a, b) => a + (b - mean) ** 2, 0) / (returns.length - 1)
-    const std = Math.sqrt(variance)
-    sharpe = std !== 0 ? (mean / std) * Math.sqrt(252) : null // annualized, assuming daily bars
-  }
-
-  let peak = values[0]
-  let maxDrawdown = 0
-  for (const v of values) {
-    if (v > peak) peak = v
-    const dd = peak !== 0 ? (peak - v) / peak : 0
-    if (dd > maxDrawdown) maxDrawdown = dd
-  }
-
-  return { finalValue: final, totalReturn, sharpe, maxDrawdown }
-}
-
 function formatPct(v: number | null) {
   return v === null ? '—' : `${(v * 100).toFixed(2)}%`
 }
@@ -170,6 +138,188 @@ function formatNumber(v: number | null) {
 
 function formatCurrency(v: number | null) {
   return v === null ? '—' : `$${v.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+}
+
+interface NoiseParams {
+  noise_factor: number
+  vol_window: number
+  metric: string
+  epsilon: number
+  confidence: number
+  k: number
+}
+
+interface BootstrapParams {
+  n_bootstrap: number
+  metric: string
+  null_value: number
+  min_threshold: number | null
+  avg_block_length: number
+  epsilon: number
+  confidence: number
+  k: number
+}
+
+const DEFAULT_NOISE_PARAMS: NoiseParams = {
+  noise_factor: 0.05,
+  vol_window: 20,
+  metric: 'sharpe',
+  epsilon: 0.01,
+  confidence: 0.95,
+  k: 30,
+}
+
+const DEFAULT_BOOTSTRAP_PARAMS: BootstrapParams = {
+  n_bootstrap: 5000,
+  metric: 'sharpe',
+  null_value: 0.0,
+  min_threshold: null,
+  avg_block_length: 20,
+  epsilon: 0.01,
+  confidence: 0.95,
+  k: 30,
+}
+
+// Generic renderer for whatever shape the backend returns — these response
+// models weren't shown, so this renders any flat/nested numeric result sensibly
+// without assuming exact field names.
+function ResultSummary({ result }: { result: Record<string, any> }) {
+  return (
+    <div className="robustness-result">
+      {Object.entries(result).map(([key, value]) => (
+        <div key={key} className="robustness-result-row">
+          <span className="robustness-result-key">{key.replace(/_/g, ' ')}</span>
+          <span className="robustness-result-value">
+            {typeof value === 'number' ? value.toFixed(4) : JSON.stringify(value)}
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function NoiseParamsForm({ params, onChange }: { params: NoiseParams; onChange: (p: NoiseParams) => void }) {
+  return (
+    <div className="params">
+      <label className="param-row">
+        <span className="param-label">noise factor</span>
+        <input className="full" type="number" step="0.01" value={params.noise_factor}
+          onChange={(e) => onChange({ ...params, noise_factor: Number(e.target.value) })} />
+      </label>
+      <label className="param-row">
+        <span className="param-label">vol window</span>
+        <input className="full" type="number" value={params.vol_window}
+          onChange={(e) => onChange({ ...params, vol_window: Number(e.target.value) })} />
+      </label>
+      <label className="param-row">
+        <span className="param-label">metric</span>
+        <select className="full" value={params.metric} onChange={(e) => onChange({ ...params, metric: e.target.value })}>
+          <option value="sharpe">sharpe</option>
+          <option value="sortino">sortino</option>
+          <option value="total_return">total_return</option>
+        </select>
+      </label>
+      <label className="param-row">
+        <span className="param-label">epsilon</span>
+        <input className="full" type="number" step="0.001" value={params.epsilon}
+          onChange={(e) => onChange({ ...params, epsilon: Number(e.target.value) })} />
+      </label>
+      <label className="param-row">
+        <span className="param-label">confidence</span>
+        <input className="full" type="number" step="0.01" min={0} max={1} value={params.confidence}
+          onChange={(e) => onChange({ ...params, confidence: Number(e.target.value) })} />
+      </label>
+      <label className="param-row">
+        <span className="param-label">k</span>
+        <input className="full" type="number" value={params.k}
+          onChange={(e) => onChange({ ...params, k: Number(e.target.value) })} />
+      </label>
+    </div>
+  )
+}
+
+function BootstrapParamsForm({ params, onChange }: { params: BootstrapParams; onChange: (p: BootstrapParams) => void }) {
+  return (
+    <div className="params">
+      <label className="param-row">
+        <span className="param-label">n bootstrap</span>
+        <input className="full" type="number" value={params.n_bootstrap}
+          onChange={(e) => onChange({ ...params, n_bootstrap: Number(e.target.value) })} />
+      </label>
+      <label className="param-row">
+        <span className="param-label">metric</span>
+        <select className="full" value={params.metric} onChange={(e) => onChange({ ...params, metric: e.target.value })}>
+          <option value="sharpe">sharpe</option>
+          <option value="sortino">sortino</option>
+          <option value="total_return">total_return</option>
+        </select>
+      </label>
+      <label className="param-row">
+        <span className="param-label">null value</span>
+        <input className="full" type="number" step="0.01" value={params.null_value}
+          onChange={(e) => onChange({ ...params, null_value: Number(e.target.value) })} />
+      </label>
+      <label className="param-row">
+        <span className="param-label">min threshold</span>
+        <input className="full" type="number" step="0.01" value={params.min_threshold ?? ''}
+          placeholder="none"
+          onChange={(e) => onChange({ ...params, min_threshold: e.target.value === '' ? null : Number(e.target.value) })} />
+      </label>
+      <label className="param-row">
+        <span className="param-label">avg block length</span>
+        <input className="full" type="number" value={params.avg_block_length}
+          onChange={(e) => onChange({ ...params, avg_block_length: Number(e.target.value) })} />
+      </label>
+      <label className="param-row">
+        <span className="param-label">epsilon</span>
+        <input className="full" type="number" step="0.001" value={params.epsilon}
+          onChange={(e) => onChange({ ...params, epsilon: Number(e.target.value) })} />
+      </label>
+      <label className="param-row">
+        <span className="param-label">confidence</span>
+        <input className="full" type="number" step="0.01" min={0} max={1} value={params.confidence}
+          onChange={(e) => onChange({ ...params, confidence: Number(e.target.value) })} />
+      </label>
+      <label className="param-row">
+        <span className="param-label">k</span>
+        <input className="full" type="number" value={params.k}
+          onChange={(e) => onChange({ ...params, k: Number(e.target.value) })} />
+      </label>
+    </div>
+  )
+}
+
+function useRobustnessTest<TParams>(endpoint: string, buildBody: (lastReq: LastStrategyRequest, params: TParams) => any) {
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [result, setResult] = useState<Record<string, any> | null>(null)
+
+  async function run(lastRequest: LastStrategyRequest | null, params: TParams) {
+    if (!lastRequest) {
+      setError('Run a strategy first — there is no strategy configuration to test.')
+      return
+    }
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(buildBody(lastRequest, params)),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.detail ? JSON.stringify(err.detail) : `Request failed (${res.status})`)
+      }
+      setResult(await res.json())
+    } catch (e: any) {
+      setError(e.message ?? 'Robustness test failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return { loading, error, result, run }
 }
 
 export default function RightPanel() {
@@ -185,6 +335,26 @@ export default function RightPanel() {
   const [expanded, setExpanded] = useState(false)
   const initialCash = history[0]?.portfolio_value ?? 100000 // rough proxy; see note below
   const buyHoldValues = useMemo(() => computeBuyAndHold(history, initialCash), [history, initialCash])
+  
+  const { lastRequest } = useStrategyRun()
+
+  const [noiseParams, setNoiseParams] = useState<NoiseParams>(DEFAULT_NOISE_PARAMS)
+  const [bootstrapParams, setBootstrapParams] = useState<BootstrapParams>(DEFAULT_BOOTSTRAP_PARAMS)
+  const [showNoiseParamsModal, setShowNoiseParamsModal] = useState(false)
+  const [showBootstrapParamsModal, setShowBootstrapParamsModal] = useState(false)
+
+  const noiseTest = useRobustnessTest('/backtest/montecarlo/noise_ohlc', (lastReq, params: NoiseParams) => ({
+    strategy: lastReq.body,
+    strategy_name: lastReq.strategyName,
+    ...params,
+  }))
+
+  const bootstrapTest = useRobustnessTest('/backtest/montecarlo/bootstrap', (lastReq, params: BootstrapParams) => ({
+    strategy: lastReq.body,
+    strategy_name: lastReq.strategyName,
+    ...params,
+  }))
+
 
   useEffect(() => {
     if (history.length === 0) {
@@ -298,24 +468,62 @@ export default function RightPanel() {
       <div className="bottom-half">
         <div className="pane">
           <h4>Robustness Tests</h4>
+          {!lastRequest && (
+            <div className="metrics-placeholder">Run a strategy first to enable robustness tests.</div>
+          )}
           <div className="tests-list">
             <div className="test-item">
               <div className="test-title">Bootstrap CI</div>
               <div className="test-actions">
-                <button className="btn small">Adjust params</button>
-                <button className="btn small">Rerun</button>
+                <button className="btn small" onClick={() => setShowBootstrapParamsModal(true)}>
+                  Adjust params
+                </button>
+                <button
+                  className="btn small"
+                  disabled={!lastRequest || bootstrapTest.loading}
+                  onClick={() => bootstrapTest.run(lastRequest, bootstrapParams)}
+                >
+                  {bootstrapTest.loading ? 'Running…' : 'Rerun'}
+                </button>
               </div>
+              {bootstrapTest.error && <div className="run-error">{bootstrapTest.error}</div>}
+              {bootstrapTest.result && <ResultSummary result={bootstrapTest.result} />}
             </div>
+
             <div className="test-item">
               <div className="test-title">Noise Injection</div>
               <div className="test-actions">
-                <button className="btn small">Adjust params</button>
-                <button className="btn small">Rerun</button>
+                <button className="btn small" onClick={() => setShowNoiseParamsModal(true)}>
+                  Adjust params
+                </button>
+                <button
+                  className="btn small"
+                  disabled={!lastRequest || noiseTest.loading}
+                  onClick={() => noiseTest.run(lastRequest, noiseParams)}
+                >
+                  {noiseTest.loading ? 'Running…' : 'Rerun'}
+                </button>
               </div>
+              {noiseTest.error && <div className="run-error">{noiseTest.error}</div>}
+              {noiseTest.result && <ResultSummary result={noiseTest.result} />}
             </div>
           </div>
         </div>
       </div>
+
+      {showBootstrapParamsModal && (
+        <Modal onClose={() => setShowBootstrapParamsModal(false)}>
+          <h4>Bootstrap CI — parameters</h4>
+          <BootstrapParamsForm params={bootstrapParams} onChange={setBootstrapParams} />
+        </Modal>
+      )}
+
+      {showNoiseParamsModal && (
+        <Modal onClose={() => setShowNoiseParamsModal(false)}>
+          <h4>Noise Injection — parameters</h4>
+          <NoiseParamsForm params={noiseParams} onChange={setNoiseParams} />
+        </Modal>
+      )}
     </aside>
   )
 }

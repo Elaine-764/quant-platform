@@ -15,7 +15,20 @@ from strategies.enhancements.filters import VolatilityFilter, MomentumFilter
 from strategies.enhancements.position_resizing import KellyCriterion, FractionalSizer
 from core_logic.portfolio.portfolio import Portfolio
 
-DATA_DIR = Path(__file__).resolve().parents[2] / "data" / "processed"
+
+def _resolve_data_dir() -> Path:
+    current_file = Path(__file__).resolve()
+    candidates = [
+        current_file.parents[1] / "data" / "processed",  # backend/data/processed
+        current_file.parents[2] / "data" / "processed",  # repo/data/processed
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return candidates[0]
+
+
+DATA_DIR = _resolve_data_dir()
 
 
 def load_prices(data_dir: Path, symbol: str, max_rows: int = 10000) -> List[Dict[str, Any]]:

@@ -16,13 +16,28 @@ export interface StrategyResult {
   history: EquityCurvePoint[]
 }
 
+// The exact body shape POSTed to /strategy/{strategy_name} — reused as the
+// "strategy" field inside NoiseOHLCRequest / BootstrapRequest.
+export interface GenericStrategyRequestBody {
+  params: Record<string, any>
+  enhancements: any
+  portfolio: any
+}
+
+export interface LastStrategyRequest {
+  strategyName: string // registry key, e.g. "cross_asset/equity_bonds"
+  body: GenericStrategyRequestBody
+}
+
 interface StrategyRunState {
   loading: boolean
   error: string | null
   result: StrategyResult | null
+  lastRequest: LastStrategyRequest | null
   setLoading: (v: boolean) => void
   setError: (v: string | null) => void
   setResult: (v: StrategyResult | null) => void
+  setLastRequest: (v: LastStrategyRequest | null) => void
 }
 
 const StrategyRunContext = createContext<StrategyRunState | null>(null)
@@ -31,9 +46,12 @@ export const StrategyRunProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<StrategyResult | null>(null)
+  const [lastRequest, setLastRequest] = useState<LastStrategyRequest | null>(null)
 
   return (
-    <StrategyRunContext.Provider value={{ loading, error, result, setLoading, setError, setResult }}>
+    <StrategyRunContext.Provider
+      value={{ loading, error, result, lastRequest, setLoading, setError, setResult, setLastRequest }}
+    >
       {children}
     </StrategyRunContext.Provider>
   )

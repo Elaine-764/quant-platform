@@ -228,8 +228,7 @@ const nextInstanceId = () => `inst_${++instanceCounter}`
 
 export default function LeftPanel() {
   const { strategies, enhancements } = useRegistry()
-  const { loading, error: runError, setLoading, setError: setRunError, setResult } = useStrategyRun()
-
+  const { loading, error: runError, setLoading, setError: setRunError, setResult, setLastRequest } = useStrategyRun()
 
   const [selectedStrategyId, setSelectedStrategyId] = useState(strategies[0]?.id ?? '')
   const strategy = useMemo(
@@ -376,6 +375,10 @@ export default function LeftPanel() {
       }
       const result = await res.json()
       setResult(result)
+      setLastRequest({
+        strategyName: strategy.endpoint.replace(/^\/strategy\//, ''),
+        body,
+      })
     } catch (e: any) {
       setRunError(e.message ?? 'Failed to run strategy')
     } finally {

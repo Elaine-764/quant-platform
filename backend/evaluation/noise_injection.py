@@ -38,6 +38,17 @@ class NoiseInjectionOHLC(MonteCarlo):
 
         self.all_metrics  = []
         self.final_mean   = None
+        self.asset_columns = self._discover_asset_columns(data)
+
+    def _discover_asset_columns(self, data: pd.DataFrame) -> dict:
+        assets = {}
+        for col in data.columns:
+            for suffix in ("_Open", "_High", "_Low", "_Close"):
+                if col.endswith(suffix):
+                    asset = col[: -len(suffix)]
+                    assets.setdefault(asset, {})[suffix[1:].lower()] = col
+        # Only keep assets that have all four OHLC columns present
+        return {a: cols for a, cols in assets.items() if {"open", "high", "low", "close"} <= cols.keys()}
 
     # ------------------------------------------------------------------
     # Local volatility: rolling std of close returns, forward-filled
@@ -70,36 +81,28 @@ class NoiseInjectionOHLC(MonteCarlo):
     # Core noise injection
     # ------------------------------------------------------------------
     def _inject_noise(self, clean_data: pd.DataFrame) -> pd.DataFrame:
-        """
-        For every bar:
-          noise_std = local_vol[i] * close[i] * noise_factor   (price-scaled)
-          offset_o, offset_c ~ N(0, noise_std)
-          After shifting O/C, recompute H/L so OHLC relationships stay valid:
-            high  = max(noisy_open, noisy_close, original_high  + offset_h)
-            low   = min(noisy_open, noisy_close, original_low   + offset_l)
-        """
+        """Applies independent OHLC noise to every discovered asset's columns."""
         noisy = clean_data.copy()
-        local_vol = self._local_vol(noisy["close"])
-
-        # price-scaled noise std per bar
-        noise_std = local_vol * noisy["close"] * self.noise_factor
-
         n = len(noisy)
-        offset_open  = np.random.normal(0, noise_std, n)
-        offset_close = np.random.normal(0, noise_std, n)
-        offset_high  = np.abs(np.random.normal(0, noise_std, n))   # high can only go up
-        offset_low   = np.abs(np.random.normal(0, noise_std, n))   # low  can only go down
 
-        noisy["open"]  = noisy["open"]  + offset_open
-        noisy["close"] = noisy["close"] + offset_close
-        noisy["high"]  = np.maximum(noisy["open"], noisy["close"],
-                                    noisy["high"] + offset_high)
-        noisy["low"]   = np.minimum(noisy["open"], noisy["close"],
-                                    noisy["low"]  - offset_low)
+        for asset, cols in self.asset_columns.items():
+            open_c, high_c, low_c, close_c = cols["open"], cols["high"], cols["low"], cols["close"]
 
-        # clip negatives (shouldn't happen with small noise_factor, but be safe)
-        for col in ["open", "high", "low", "close"]:
-            noisy[col] = noisy[col].clip(lower=1e-8)
+            local_vol = self._local_vol(noisy[close_c])
+            noise_std = local_vol * noisy[close_c] * self.noise_factor
+
+            offset_open  = np.random.normal(0, noise_std, n)
+            offset_close = np.random.normal(0, noise_std, n)
+            offset_high  = np.abs(np.random.normal(0, noise_std, n))
+            offset_low   = np.abs(np.random.normal(0, noise_std, n))
+
+            noisy[open_c]  = noisy[open_c]  + offset_open
+            noisy[close_c] = noisy[close_c] + offset_close
+            noisy[high_c]  = np.maximum(noisy[open_c], np.maximum(noisy[close_c], noisy[high_c] + offset_high))
+            noisy[low_c]   = np.minimum(noisy[open_c], np.minimum(noisy[close_c], noisy[low_c] - offset_low))
+
+            for c in (open_c, high_c, low_c, close_c):
+                noisy[c] = noisy[c].clip(lower=1e-8)
 
         return noisy
 
@@ -108,8 +111,9 @@ class NoiseInjectionOHLC(MonteCarlo):
     # ------------------------------------------------------------------
     def _run_once(self) -> float:
         noisy_data = self._inject_noise(self.data)
-        history    = self.engine.run(noisy_data)
-        return self._compute_metric(history)
+        self.engine.reset_for_new_run(new_data=noisy_data)
+        result = self.engine.run()
+        return self._compute_metric(result["history"])
 
     # ------------------------------------------------------------------
     # run() — inherits find_n logic, adds metric collection
@@ -215,8 +219,9 @@ class NoiseInjectionSlippage(MonteCarlo):
     # ------------------------------------------------------------------
     def _run_once(self) -> float:
         noisy_data = self._inject_slippage(self.data)
-        history    = self.engine.run(noisy_data)
-        return self._compute_metric(history)
+        self.engine.reset_for_new_run(new_data=noisy_data)
+        result = self.engine.run()
+        return self._compute_metric(result["history"])
 
     # ------------------------------------------------------------------
     # run()

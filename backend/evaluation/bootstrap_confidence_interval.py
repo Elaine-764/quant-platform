@@ -18,7 +18,7 @@ Steps
 import numpy as np
 import pandas as pd
 from scipy import stats
-from monte_carlo import MonteCarlo
+from evaluation.monte_carlo import MonteCarlo
 from core_logic.engine.engine import BacktestEngine
 
 
@@ -110,31 +110,24 @@ class BootstrappedConfidenceIntervals(MonteCarlo):
     # ------------------------------------------------------------------
     def _run_once(self) -> float:
         synthetic_data = self._stationary_bootstrap()
-        history = self.engine.run(synthetic_data)          # engine returns self.history list
-        return self._compute_metric(history)
-
+        self.engine.reset_for_new_run(new_data=synthetic_data)
+        result = self.engine.run()
+        return self._compute_metric(result["history"])
     # ------------------------------------------------------------------
     # Full pipeline (overrides base run())
     # ------------------------------------------------------------------
     def run(self) -> dict:
-        """
-        1. Baseline run on actual data
-        2. find_n() to determine sufficient n (uses _run_once → bootstrap paths)
-        3. Run remaining (n - k) trials, reusing the k sample trials from find_n
-        4. Build CI, compare against null and threshold
-        Returns a results dict.
-        """
-        # Step 1: baseline on real data
-        baseline_history = self.engine.run(self.data)
-        self.baseline_metric = self._compute_metric(baseline_history)
+        # Step 1: baseline on real (non-bootstrapped) data
+        self.engine.reset_for_new_run(new_data=self.data)
+        baseline_result = self.engine.run()
+        self.baseline_metric = self._compute_metric(baseline_result["history"])
 
         # Step 2: find n via sample variance (runs k bootstrap trials internally)
         self.find_n()
-        n = max(self.n, self.n_bootstrap)   # respect both the stat requirement and desired 5000
+        n = max(self.n, self.n_bootstrap)
 
         # Step 3: collect all bootstrap metrics
-        #   find_n() already ran k trials — reuse their scalar results
-        bootstrap_metrics = list(self.sample_results)   # length k, already scalars
+        bootstrap_metrics = list(self.sample_results)
 
         for _ in range(n - self.k):
             bootstrap_metrics.append(self._run_once())
@@ -148,8 +141,8 @@ class BootstrappedConfidenceIntervals(MonteCarlo):
         self.ci = (lower, upper)
 
         # Step 5: verdict
-        null_inside_ci   = lower <= self.null_value <= upper
-        above_threshold  = (self.min_threshold is None) or (lower > self.min_threshold)
+        null_inside_ci  = lower <= self.null_value <= upper
+        above_threshold = (self.min_threshold is None) or (lower > self.min_threshold)
 
         if null_inside_ci:
             self.verdict = "REJECT — strategy indistinguishable from noise"
@@ -159,11 +152,11 @@ class BootstrappedConfidenceIntervals(MonteCarlo):
             self.verdict = "PASS — statistically significant"
 
         return {
-            "baseline":         self.baseline_metric,
-            "ci_lower":         lower,
-            "ci_upper":         upper,
-            "n_simulations":    n,
-            "null_inside_ci":   null_inside_ci,
-            "verdict":          self.verdict,
+            "baseline":        float(self.baseline_metric),
+            "ci_lower":        float(lower),
+            "ci_upper":        float(upper),
+            "n_simulations":   n,
+            "null_inside_ci":  bool(null_inside_ci),
+            "verdict":         self.verdict,
         }
 
