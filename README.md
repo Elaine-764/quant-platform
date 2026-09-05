@@ -1,6 +1,12 @@
 # Trading Strategies Research Platform
 
-This quant platform is a research and backtesting workspace for systematic trading strategies. The project is split into a software layer that handles data, execution, evaluation, and APIs, and a strategy layer that focuses on signals, factors, and the math behind the decisions.
+A Python-based research platform for developing, backtesting, and evaluating quantitative trading strategies using historical market data.
+
+The platform is designed to support the full research workflow: from data preparation and signal generation to portfolio construction, backtesting, performance analysis, and strategy comparison. The emphasis is on building reusable research infrastructure that makes it easy to experiment with different strategies while keeping assumptions and evaluation methodology explicit.
+
+## Current Status
+
+The core research infrastructure testing and frontend is ongoing. Current work focuses on expanding the backtesting framework, improving strategy modularity, and building more robust performance and risk analysis tools.
 
 ## What It Does
 
